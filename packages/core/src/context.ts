@@ -90,6 +90,8 @@ export interface StepContext<Cfg> {
   readonly bus: EventBus;
   readonly log: Logger;
   readonly signal: AbortSignal;
+  /** Adds spend (USD) to this step's recorded cost. */
+  readonly recordCost: (usd: number) => void;
   /** Stable per-execution key, e.g. for idempotency: `<run>:<item>:<node>`. */
   readonly stepKey: string;
 }
@@ -121,6 +123,7 @@ export function createStepContext<Cfg>(
     registry: new Registry(),
     bus: new EventBus(),
     log: noopLog,
+    recordCost: () => {},
     signal: new AbortController().signal,
     stepKey: `${runId}:${itemId}:${nodeId}`,
     ...overrides,
