@@ -1,15 +1,15 @@
 # Open questions
 
-| # | Question | Decide by |
-|---|---|---|
-| 1 | Does a `--plugin-dir` plugin bundling hooks and an MCP server behave as designed in interactive sessions, including the `Stop` nudge loop? (spike) | Start of M2 |
-| 2 | How accurate is a budget estimate from transcript usage; is a soft cap acceptable for interactive steps? | M2 |
-| 3 | After a whiletrue crash: re-attach to the still-running tmux pane, or restart with `claude --resume`? | M3 |
-| 4 | For `session: item` across retries, how does resume behave when the working directory has changed? | M3 |
-| 5 | Convention for spec links in issue bodies (e.g. `spec: specs/m3/api.md#L40-L88`) so the knowledge provider can parse them | M3/M4 |
-| 6 | ~~Expression language for `until:` and templates~~ **Resolved: CEL** behind an `Expr` interface (`parse`, `check(schema)`, `eval(scope)`), pending a half-day spike. See below. | M1 |
-| 7 | ~~License: MIT or Apache-2.0~~ **Resolved: MIT** | Done |
-| 8 | ~~Claim npm org / GitHub org~~ **Resolved:** npm org `whiletrue-ai` (`@whiletrue` taken); packages are `@whiletrue-ai/*`, CLI binary stays `whiletrue`. No GitHub org needed. | Done |
+| #   | Question                                                                                                                                                                        | Decide by   |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| 1   | Does a `--plugin-dir` plugin bundling hooks and an MCP server behave as designed in interactive sessions, including the `Stop` nudge loop? (spike)                              | Start of M2 |
+| 2   | How accurate is a budget estimate from transcript usage; is a soft cap acceptable for interactive steps?                                                                        | M2          |
+| 3   | After a whiletrue crash: re-attach to the still-running tmux pane, or restart with `claude --resume`?                                                                           | M3          |
+| 4   | For `session: item` across retries, how does resume behave when the working directory has changed?                                                                              | M3          |
+| 5   | Convention for spec links in issue bodies (e.g. `spec: specs/m3/api.md#L40-L88`) so the knowledge provider can parse them                                                       | M3/M4       |
+| 6   | ~~Expression language for `until:` and templates~~ **Resolved: CEL** behind an `Expr` interface (`parse`, `check(schema)`, `eval(scope)`), pending a half-day spike. See below. | M1          |
+| 7   | ~~License: MIT or Apache-2.0~~ **Resolved: MIT**                                                                                                                                | Done        |
+| 8   | ~~Claim npm org / GitHub org~~ **Resolved:** npm org `whiletrue-ai` (`@whiletrue` taken); packages are `@whiletrue-ai/*`, CLI binary stays `whiletrue`. No GitHub org needed.   | Done        |
 
 ## Decision: expression language (OQ-6)
 

@@ -1,0 +1,23 @@
+{
+  "name": "@whiletrue-ai/core",
+  "version": "0.0.0",
+  "description": "whiletrue core: module/strategy/runner interfaces, validator, scheduler",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dariussingh/whiletrue.git",
+    "directory": "packages/core"
+  },
+  "scripts": {
+    "build": "tsc -b"
+  }
+}
