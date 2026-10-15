@@ -191,6 +191,15 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(@types/node@22.20.5)(@vitest/coverage-v8@4.1.11)(vite@7.3.7(@types/node@22.20.5)(yaml@2.9.1))
 
+  packages/basics:
+    dependencies:
+      '@whiletrue-ai/core':
+        specifier: workspace:*
+        version: link:../core
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
   packages/core:
     dependencies:
       yaml:

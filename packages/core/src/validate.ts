@@ -22,7 +22,12 @@ const firstPort = (ports: { name: string; cap: string }[], preferred: string) =>
  * Static validation: everything that can be known before any tokens are spent.
  * Resolves modules, checks config schemas, wiring caps and the safety rules.
  */
-export function validatePipeline(config: PipelineConfig, registry: Registry): Diagnostic[] {
+export function validatePipeline(
+  config: PipelineConfig,
+  registry: Registry,
+  options: { cwd?: string } = {},
+): Diagnostic[] {
+  const vctx = { cwd: options.cwd ?? process.cwd(), registry };
   const out: Diagnostic[] = [];
   const push = (node: PipelineNode, severity: Severity, message: string) =>
     out.push({ severity, message, nodeId: node.id, loc: node.loc });
@@ -46,7 +51,7 @@ export function validatePipeline(config: PipelineConfig, registry: Registry): Di
           push(node, "error", `Invalid config for "${node.use}": ${issue.message}${at}`);
         }
       } else {
-        pushIssues(node, resolved.module.validate?.(parsed.data) ?? []);
+        pushIssues(node, resolved.module.validate?.(parsed.data, vctx) ?? []);
       }
 
       if (resolved.kind === "action") {

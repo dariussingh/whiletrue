@@ -1,6 +1,7 @@
 import type { ZodType } from "zod";
 import type { PipelineNode } from "./config.js";
 import type { CompositeContext, StepContext } from "./context.js";
+import type { Registry } from "./registry.js";
 
 /** How a module may touch the world. Drives the safety rules (see architecture.md). */
 export const EFFECTS = ["pure", "deterministic", "agentic", "side-effect"] as const;
@@ -37,6 +38,12 @@ export interface ConfigIssue {
   message: string;
 }
 
+/** What static checks may look at (e.g. an agent step loading its prompt file). */
+export interface ValidateContext {
+  cwd: string;
+  registry: Registry;
+}
+
 export interface ModuleMeta<Cfg> {
   id: string; // e.g. 'gate.tests'
   kind: "action" | "composite";
@@ -49,7 +56,7 @@ export interface ModuleMeta<Cfg> {
 export interface ActionModule<Cfg> extends ModuleMeta<Cfg> {
   kind: "action";
   /** Extra static checks beyond the config schema (e.g. agent limits). */
-  validate?(config: Cfg): ConfigIssue[];
+  validate?(config: Cfg, vctx: ValidateContext): ConfigIssue[];
   /** Required for `side-effect` modules: a deterministic key so resume never repeats the effect. */
   idempotencyKey?(input: PortValues, ctx: StepContext<Cfg>): string;
   run(input: PortValues, ctx: StepContext<Cfg>): Promise<Emit>;
@@ -61,7 +68,7 @@ export interface Strategy<Cfg> {
   /** Children are chained: each child's `out` feeds the next child's `in`. */
   chain?: boolean;
   /** Extra static checks beyond the config schema (e.g. loops must be bounded). */
-  validate?(config: Cfg): ConfigIssue[];
+  validate?(config: Cfg, vctx: ValidateContext): ConfigIssue[];
   run(children: PipelineNode[], input: PortValues, ctx: CompositeContext<Cfg>): Promise<Emit>;
 }
 
