@@ -7,3 +7,9 @@ coverage/
 .env.*
 .DS_Store
 *.log
+
+# devenv / direnv
+.devenv*
+devenv.local.nix
+devenv.local.yaml
+.direnv/

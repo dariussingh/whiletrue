@@ -18,6 +18,7 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 ## Phase M0 · Core engine
 
 9. [x] `@whiletrue-ai/core`: define `ModuleMeta`, `ActionModule`, `Strategy`, `Emit`, `PortSpec`, `PortValues`, effects enum.
+9.5. [x] devenv + direnv dev environment (`devenv.nix`, `devenv.yaml`, `.envrc`) following the `~/dotfiles/devenv` template format: Node 24, pnpm, git, gh, tmux. Replaces the interim `flake.nix`.
 10. [ ] Caps: zod → JSON Schema; built-in caps `Issue, Diff, PullRequest, Verdict, ReviewFindings, Text, Any`; compatibility check.
 11. [ ] Outcome ports (`ok, fail, needs_human, skip, rejected`) and unwired-port fallback policy.
 12. [ ] Module/strategy/runner/provider registry + public plugin API.

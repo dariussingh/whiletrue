@@ -4,7 +4,7 @@ Local TypeScript orchestrator that runs pipelines around coding agents. Design: 
 
 ## Commands
 
-Use pnpm inside the Nix dev shell: `nix develop --command pnpm <cmd>` (or `nix develop`, or direnv). Corepack is broken on NixOS; don't use it.
+Use pnpm inside the devenv shell (`devenv.nix`, same format as `~/dotfiles/devenv`): `devenv shell -- pnpm <cmd>`, or `direnv allow` once and run `pnpm` directly. Corepack is broken on NixOS; don't use it.
 
 - `pnpm check` — format, lint, typecheck, tests with coverage, docs check (run before every commit)
 - `pnpm test` / `pnpm coverage` / `pnpm typecheck` / `pnpm lint` / `pnpm format` / `pnpm docs:check`
