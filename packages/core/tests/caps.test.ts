@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { CapRegistry, CapError, createBuiltinCaps } from "./caps.js";
+import { CapRegistry, CapError, createBuiltinCaps } from "../src/caps.js";
 
 describe("CapRegistry", () => {
   it("registers and retrieves caps", () => {

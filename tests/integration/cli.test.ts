@@ -9,8 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { EXIT, main } from "./cli.js";
-import { createDefaultRegistry, loadPlugins } from "./registry.js";
+import { EXIT, createDefaultRegistry, loadPlugins, main } from "@whiletrue-ai/cli";
 
 let dir: string;
 let out: string;

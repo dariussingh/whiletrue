@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Registry, type AgentRequest } from "@whiletrue-ai/core";
-import { buildHeadlessArgs, createHeadlessRunner } from "./headless.js";
-import { claudeCodePlugin } from "./index.js";
+import { buildHeadlessArgs, createHeadlessRunner } from "../src/headless.js";
+import { claudeCodePlugin } from "../src/index.js";
 
 const dir = mkdtempSync(join(tmpdir(), "wt-cc-"));
 /** A fake `claude`: dumps its argv + stdin to files, then runs the given shell body. */

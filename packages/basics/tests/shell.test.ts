@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createStepContext } from "@whiletrue-ai/core";
-import { gateShellModule, shellModule } from "./shell.js";
+import { gateShellModule, shellModule } from "../src/shell.js";
 
 const dir = mkdtempSync(join(tmpdir(), "wt-shell-"));
 writeFileSync(join(dir, "marker.txt"), "x");

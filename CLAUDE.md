@@ -11,7 +11,7 @@ Use pnpm inside the devenv shell (`devenv.nix`, same format as `~/dotfiles/deven
 
 ## Rules (see `docs/conventions.md`)
 
-- TDD; coverage floor lives in `vitest.config.ts`, ratchet it up, never down.
+- TDD; unit tests in `packages/<pkg>/tests/`, cross-package tests in `tests/integration/` (never beside source); coverage floor lives in `vitest.config.ts`, ratchet it up, never down.
 - Update user docs and `docs/architecture.md` in the same change as behavior.
 - `@whiletrue-ai/core` must not import git, GitHub, tmux, or any agent. Built-ins use only the public plugin API.
 - Track work in `docs/todo.md` (no GitHub issues for now). One todo item (or small group) per commit/PR. The human reviews every line before merge.

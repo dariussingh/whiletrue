@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "baseUrl": ".",
+    "paths": { "@whiletrue-ai/*": ["packages/*/src/index.ts"] },
+    "types": ["node"]
+  },
+  "include": ["packages/*/src", "packages/*/tests", "tests"]
+}

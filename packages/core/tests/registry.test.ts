@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { defineAction, defineStrategy } from "./module.js";
-import { Registry, RegistryError, type Plugin } from "./registry.js";
-import type { Runner } from "./runner.js";
+import { defineAction, defineStrategy } from "../src/module.js";
+import { Registry, RegistryError, type Plugin } from "../src/registry.js";
+import type { Runner } from "../src/runner.js";
 
 const action = (id: string) =>
   defineAction({

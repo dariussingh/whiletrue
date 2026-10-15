@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runCommand, tail } from "./process.js";
+import { runCommand, tail } from "../src/process.js";
 
 const cwd = process.cwd();
 

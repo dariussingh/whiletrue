@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Registry } from "@whiletrue-ai/core";
-import { basicsPlugin } from "./index.js";
+import { basicsPlugin } from "../src/index.js";
 
 describe("basicsPlugin", () => {
   it("registers shell, gate.shell, exec and agent", () => {

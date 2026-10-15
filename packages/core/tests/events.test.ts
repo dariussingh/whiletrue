@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { EventBus, type WtEvent } from "./events.js";
+import { EventBus, type WtEvent } from "../src/events.js";
 
 describe("EventBus", () => {
   it("stamps events and delivers them in subscription order", () => {

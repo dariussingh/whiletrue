@@ -9,11 +9,11 @@ export default defineConfig({
     alias: [{ find: /^@whiletrue-ai\/(.+)$/, replacement: "$1", customResolver: (id) => src(id) }],
   },
   test: {
-    include: ["packages/*/src/**/*.test.ts"],
+    include: ["packages/*/tests/**/*.test.ts", "tests/**/*.test.ts"],
     coverage: {
       provider: "v8",
       include: ["packages/*/src/**/*.ts"],
-      exclude: ["**/*.test.ts", "packages/*/src/bin.ts"],
+      exclude: ["packages/*/src/bin.ts"],
       // Floor only; ratchet upward as packages grow (see docs/conventions.md).
       thresholds: { lines: 95, functions: 95, branches: 90, statements: 95 },
     },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { createStepContext } from "./context.js";
+import { createStepContext } from "../src/context.js";
 import {
   EFFECTS,
   ModuleDefinitionError,
@@ -9,7 +9,7 @@ import {
   isEffect,
   type ActionModule,
   type Strategy,
-} from "./module.js";
+} from "../src/module.js";
 
 const shellModule = (): ActionModule<{ run: string }> => ({
   id: "shell",

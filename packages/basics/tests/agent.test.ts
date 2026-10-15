@@ -10,7 +10,7 @@ import {
   type AgentResult,
   type Runner,
 } from "@whiletrue-ai/core";
-import { agentModule } from "./agent.js";
+import { agentModule } from "../src/agent.js";
 
 const dir = mkdtempSync(join(tmpdir(), "wt-agent-"));
 const agent = (name: string, fm: string, body = "Do {{input}} for {{item.id}} {{extra}}") => {

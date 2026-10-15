@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createStepContext } from "@whiletrue-ai/core";
-import { execModule } from "./exec.js";
+import { execModule } from "../src/exec.js";
 
 const dir = mkdtempSync(join(tmpdir(), "wt-exec-"));
 const script = (name: string, body: string) => {

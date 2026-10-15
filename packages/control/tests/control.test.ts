@@ -9,7 +9,7 @@ import {
   validatePipeline,
   type Emit,
 } from "@whiletrue-ai/core";
-import { controlPlugin, loopStrategy, sequenceStrategy } from "./index.js";
+import { controlPlugin, loopStrategy, sequenceStrategy } from "../src/index.js";
 
 /** `step` replays a scripted list of emits and records each call's input and loop scope. */
 function setup() {

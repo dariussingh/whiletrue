@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseDuration } from "./duration.js";
+import { parseDuration } from "../src/duration.js";
 
 describe("parseDuration", () => {
   it.each([

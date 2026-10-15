@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { SqliteStore } from "./sqlite-store.js";
+import { SqliteStore } from "../src/sqlite-store.js";
 
 let store: SqliteStore;
 beforeEach(() => {

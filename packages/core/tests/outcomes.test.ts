@@ -5,7 +5,7 @@ import {
   itemStateFor,
   resolveOutcome,
   type OutcomePolicy,
-} from "./outcomes.js";
+} from "../src/outcomes.js";
 
 describe("outcome ports", () => {
   it("lists the documented ports", () => {

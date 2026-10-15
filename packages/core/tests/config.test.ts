@@ -8,7 +8,7 @@ import {
   loadPipeline,
   parseAgentDefinition,
   parsePipeline,
-} from "./config.js";
+} from "../src/config.js";
 
 const err = (fn: () => unknown): ConfigError => {
   try {

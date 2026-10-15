@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { parsePipeline } from "./config.js";
-import { MemoryStore } from "./memory-store.js";
-import { defineAction, defineStrategy, type Emit } from "./module.js";
-import { Registry } from "./registry.js";
-import { hashPipeline, runPipeline } from "./runtime.js";
-import { EventBus } from "./events.js";
+import { parsePipeline } from "../src/config.js";
+import { MemoryStore } from "../src/memory-store.js";
+import { defineAction, defineStrategy, type Emit } from "../src/module.js";
+import { Registry } from "../src/registry.js";
+import { hashPipeline, runPipeline } from "../src/runtime.js";
+import { EventBus } from "../src/events.js";
 
 function makeRegistry(): Registry {
   const r = new Registry();

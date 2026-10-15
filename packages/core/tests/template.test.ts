@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TemplateError, renderDeep, renderTemplate } from "./template.js";
+import { TemplateError, renderDeep, renderTemplate } from "../src/template.js";
 
 const scope = { item: { id: 7, title: "Fix it", tags: ["a"] }, steps: { "my-step": { out: "x" } } };
 

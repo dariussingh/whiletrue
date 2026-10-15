@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { parsePipeline } from "./config.js";
-import { defineAction, defineStrategy, type ActionModule } from "./module.js";
-import { Registry } from "./registry.js";
-import { formatDiagnostic, hasErrors, validatePipeline } from "./validate.js";
+import { parsePipeline } from "../src/config.js";
+import { defineAction, defineStrategy, type ActionModule } from "../src/module.js";
+import { Registry } from "../src/registry.js";
+import { formatDiagnostic, hasErrors, validatePipeline } from "../src/validate.js";
 
 const action = (
   id: string,
-  over: Partial<ActionModule<{ run?: string }>> = {},
-): ActionModule<{ run?: string }> =>
+  over: Partial<ActionModule<{ run?: string | undefined }>> = {},
+): ActionModule<{ run?: string | undefined }> =>
   defineAction({
     id,
     kind: "action",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Scope, createStepContext } from "./context.js";
+import { Scope, createStepContext } from "../src/context.js";
 
 describe("Scope", () => {
   it("inherits values from the parent and shadows them", () => {
