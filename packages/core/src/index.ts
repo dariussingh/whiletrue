@@ -4,3 +4,6 @@ export * from "./caps.js";
 export * from "./outcomes.js";
 export * from "./runner.js";
 export * from "./registry.js";
+export * from "./config.js";
+export * from "./duration.js";
+export * from "./template.js";
