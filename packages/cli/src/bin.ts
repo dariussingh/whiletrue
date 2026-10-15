@@ -1,5 +1,13 @@
 #!/usr/bin/env node
-import { main } from "./cli.js";
+// node:sqlite is stable enough for us but still prints an ExperimentalWarning; hide only that one.
+const emitWarning = process.emitWarning.bind(process);
+process.emitWarning = ((warning: string | Error, ...rest: unknown[]) => {
+  const text = typeof warning === "string" ? warning : warning.message;
+  if (text.includes("SQLite")) return;
+  (emitWarning as (...args: unknown[]) => void)(warning, ...rest);
+}) as typeof process.emitWarning;
+
+const { main } = await import("./cli.js");
 
 const controller = new AbortController();
 process.on("SIGINT", () => controller.abort());

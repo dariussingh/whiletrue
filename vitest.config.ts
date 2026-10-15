@@ -13,9 +13,9 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["packages/*/src/**/*.ts"],
-      exclude: ["**/*.test.ts"],
+      exclude: ["**/*.test.ts", "packages/*/src/bin.ts"],
       // Floor only; ratchet upward as packages grow (see docs/conventions.md).
-      thresholds: { lines: 90, functions: 90, branches: 85, statements: 90 },
+      thresholds: { lines: 95, functions: 95, branches: 90, statements: 95 },
     },
   },
 });

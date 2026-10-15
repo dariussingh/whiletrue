@@ -4,7 +4,7 @@ A local, single-machine TypeScript orchestrator that runs configurable pipelines
 
 > LangGraph builds the agent; whiletrue runs the loop around agents you already have.
 
-**Status:** design phase. See [`docs/`](docs/README.md): [architecture](docs/architecture.md), [plan](docs/plan.md), [todo](docs/todo.md).
+**Status:** M0 (core engine) built, pending review. `whiletrue init | validate | plan | run | status` work with the headless Claude Code runner. See [`docs/`](docs/README.md): [architecture](docs/architecture.md), [plan](docs/plan.md), [todo](docs/todo.md).
 
 ## License
 

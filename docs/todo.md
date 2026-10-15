@@ -17,22 +17,24 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 
 ## Phase M0 · Core engine
 
+> **M0 status: complete, awaiting owner review.** Deviations from the plan, all deliberate: items 16 and 17 landed before 15; `gate.shell` (item 29) and the `agent` action were built early in `@whiletrue-ai/basics`; a minimal bounded `sequence` and `loop` (only `max` and `stop_when`) live in `@whiletrue-ai/control` so the Ralph exit works, and item 25-26 will extend them; `MemoryStore` was added to core for tests. Manual real-Claude smoke: see [m0-smoke.md](m0-smoke.md).
+
 9. [x] `@whiletrue-ai/core`: define `ModuleMeta`, `ActionModule`, `Strategy`, `Emit`, `PortSpec`, `PortValues`, effects enum.
        9.5. [x] devenv + direnv dev environment (`devenv.nix`, `devenv.yaml`, `.envrc`) following the `~/dotfiles/devenv` template format: Node 24, pnpm, git, gh, tmux. Replaces the interim `flake.nix`.
-10. [ ] Caps: zod → JSON Schema; built-in caps `Issue, Diff, PullRequest, Verdict, ReviewFindings, Text, Any`; compatibility check.
-11. [ ] Outcome ports (`ok, fail, needs_human, skip, rejected`) and unwired-port fallback policy.
-12. [ ] Module/strategy/runner/provider registry + public plugin API.
-13. [ ] YAML config loader (`whiletrue.yaml`, `agents/*.md` frontmatter, `loops/*.yaml`) with schema errors that cite file/line.
-14. [ ] Validator: resolve modules, type-check wires, enforce `loop.max`, agent `limits`, gate determinism, side-effect idempotency keys.
-15. [ ] `StepContext` / `CompositeContext` (config, scoped KV, workspace, sessions, event bus, logger, cancellation); `ctx.run(child, input)` as the only child-execution path.
-16. [ ] Event bus (append-only typed events).
-17. [ ] `StateStore` interface.
-18. [ ] `@whiletrue-ai/store-sqlite`: migrations and tables `runs, items, steps, parks, sessions, effects, learnings, events, cache`.
-19. [ ] Sequential scheduler: run an item through a module tree, persist every step.
-20. [ ] `@whiletrue-ai/basics`: `shell`, `exec` (JSON over stdin/stdout).
-21. [ ] `@whiletrue-ai/claude-code` headless runner (`claude -p --output-format stream-json`, `--json-schema`, `--max-turns`, `--max-budget-usd`, `--permission-prompts none`); runner capability declaration.
-22. [ ] `@whiletrue-ai/cli`: `init`, `validate`, `plan` (expanded tree, no tokens), `run`, `status`.
-23. [ ] **M0 exit:** a bounded Ralph loop runs on the headless runner against a toy repo (integration test with a fake runner + one real smoke run).
+10. [x] Caps: zod → JSON Schema; built-in caps `Issue, Diff, PullRequest, Verdict, ReviewFindings, Text, Any`; compatibility check.
+11. [x] Outcome ports (`ok, fail, needs_human, skip, rejected`) and unwired-port fallback policy.
+12. [x] Module/strategy/runner/provider registry + public plugin API.
+13. [x] YAML config loader (`whiletrue.yaml`, `agents/*.md` frontmatter, `loops/*.yaml`) with schema errors that cite file/line.
+14. [x] Validator: resolve modules, type-check wires, enforce `loop.max`, agent `limits`, gate determinism, side-effect idempotency keys.
+15. [x] `StepContext` / `CompositeContext` (config, scoped KV, workspace, sessions, event bus, logger, cancellation); `ctx.run(child, input)` as the only child-execution path.
+16. [x] Event bus (append-only typed events).
+17. [x] `StateStore` interface.
+18. [x] `@whiletrue-ai/store-sqlite`: migrations and tables `runs, items, steps, parks, sessions, effects, learnings, events, cache`.
+19. [x] Sequential scheduler: run an item through a module tree, persist every step.
+20. [x] `@whiletrue-ai/basics`: `shell`, `exec` (JSON over stdin/stdout).
+21. [x] `@whiletrue-ai/claude-code` headless runner (`claude -p --output-format stream-json`, `--json-schema`, `--max-turns`, `--max-budget-usd`, `--permission-prompts none`); runner capability declaration.
+22. [x] `@whiletrue-ai/cli`: `init`, `validate`, `plan` (expanded tree, no tokens), `run`, `status`.
+23. [x] **M0 exit:** a bounded Ralph loop runs on the headless runner against a toy repo (integration test with a fake runner + one real smoke run).
 
 ## Phase M1 · Control flow & composites
 
