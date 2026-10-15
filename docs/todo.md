@@ -17,7 +17,7 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 
 ## Phase M0 · Core engine
 
-9. [ ] `@whiletrue-ai/core`: define `ModuleMeta`, `ActionModule`, `Strategy`, `Emit`, `PortSpec`, `PortValues`, effects enum.
+9. [x] `@whiletrue-ai/core`: define `ModuleMeta`, `ActionModule`, `Strategy`, `Emit`, `PortSpec`, `PortValues`, effects enum.
 10. [ ] Caps: zod → JSON Schema; built-in caps `Issue, Diff, PullRequest, Verdict, ReviewFindings, Text, Any`; compatibility check.
 11. [ ] Outcome ports (`ok, fail, needs_human, skip, rejected`) and unwired-port fallback policy.
 12. [ ] Module/strategy/runner/provider registry + public plugin API.

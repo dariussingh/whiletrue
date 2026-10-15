@@ -4,7 +4,7 @@ Local TypeScript orchestrator that runs pipelines around coding agents. Design: 
 
 ## Commands
 
-Use pnpm (`npx -y pnpm@12.11.2 <cmd>` if pnpm isn't installed; corepack is broken on this machine).
+Use pnpm inside the Nix dev shell: `nix develop --command pnpm <cmd>` (or `nix develop`, or direnv). Corepack is broken on NixOS; don't use it.
 
 - `pnpm check` — format, lint, typecheck, tests with coverage, docs check (run before every commit)
 - `pnpm test` / `pnpm coverage` / `pnpm typecheck` / `pnpm lint` / `pnpm format` / `pnpm docs:check`
@@ -15,4 +15,5 @@ Use pnpm (`npx -y pnpm@12.11.2 <cmd>` if pnpm isn't installed; corepack is broke
 - Update user docs and `docs/architecture.md` in the same change as behavior.
 - `@whiletrue-ai/core` must not import git, GitHub, tmux, or any agent. Built-ins use only the public plugin API.
 - Track work in `docs/todo.md` (no GitHub issues for now). One todo item (or small group) per commit/PR. The human reviews every line before merge.
+- Never commit or push without showing the user the diff and getting explicit approval.
 - Commit trailer: `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`.
