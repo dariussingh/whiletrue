@@ -9,6 +9,9 @@
     },
     {
       "path": "packages/basics"
+    },
+    {
+      "path": "packages/claude-code"
     }
   ]
 }
