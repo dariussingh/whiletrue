@@ -1,10 +1,12 @@
 # whiletrue Architecture
 
+> **Naming note:** the source doc says `@whiletrue/*`; that npm scope was unavailable, so packages are published as `@whiletrue-ai/*`. The CLI binary is still `whiletrue`.
+
 > Source of truth: the "whiletrue Architecture" Claude doc (rev 18, 2026-10-15). Diagrams live there; this file is the repo copy. Keep both in sync.
 
 ## Overview
 
-whiletrue (`@whiletrue/cli`) is a local, single-machine TypeScript orchestrator that runs configurable pipelines of agentic and deterministic steps around coding agents like Claude Code and opencode. It runs outside Claude Code and drives it as a subprocess.
+whiletrue (`@whiletrue-ai/cli`) is a local, single-machine TypeScript orchestrator that runs configurable pipelines of agentic and deterministic steps around coding agents like Claude Code and opencode. It runs outside Claude Code and drives it as a subprocess.
 
 Positioning: **LangGraph builds the agent; whiletrue runs the loop around agents you already have.** Fixed-pipeline tools such as ralphex, and persona tools such as ralph-orchestrator, let you tune their steps. whiletrue lets you change the shape of the loop itself.
 
@@ -355,7 +357,7 @@ The v0.1 acceptance test is the author's workflow, steps 8 to 11, running end to
 ```yaml
 # whiletrue.yaml
 name: milestone-loop
-uses: ["@whiletrue/github", "@whiletrue/git", "@whiletrue/opencode"]
+uses: ["@whiletrue-ai/github", "@whiletrue-ai/git", "@whiletrue-ai/opencode"]
 on_idle: exit
 
 source:
@@ -396,7 +398,7 @@ pipeline:
           max: 3
           until: "{{steps.fix.output.unanswered == 0}}"
           do:
-            - uses: "@whiletrue/recipes/review-respond"   # classify, fix, reply per thread
+            - uses: "@whiletrue-ai/recipes/review-respond"   # classify, fix, reply per thread
               with: { session: item }
             - gate.shell: { run: "npm test" }
             - gate.comments_answered: {}
@@ -415,17 +417,17 @@ One pnpm-workspace monorepo publishes everything under the `@whiletrue` npm scop
 
 | Package | Contents | Depends on |
 |---|---|---|
-| `@whiletrue/core` | Module, strategy and runner interfaces, registry, config loader, validator, scheduler, store interface, event bus | none |
-| `@whiletrue/store-sqlite` | SQLite `StateStore` | core |
-| `@whiletrue/control` | Strategies: `sequence`, `loop`, `map`, `parallel`, `switch`, `retry`, `try` | core |
-| `@whiletrue/basics` | `shell`, `exec`, `gate.*`, `human.*`, `context.*`, `session.*`, sources `json` and `markdown_tasks` | core |
-| `@whiletrue/claude-code` | Interactive and headless runners, plus the bundled Claude Code plugin (MCP server and hooks) | core |
-| `@whiletrue/opencode` | opencode runner | core |
-| `@whiletrue/git` | `git-worktree` workspace, commit, push, diff modules | core |
-| `@whiletrue/github` | `github_issues` source, PR, review, merge and wake conditions | core, git |
-| `@whiletrue/tmux` | TUI: session, panes, control panel | core |
-| `@whiletrue/cli` | The `whiletrue` command; loads plugins listed in `whiletrue.yaml` | all of the above as defaults |
-| `@whiletrue/recipes` | Shareable composites: `ralph`, `review-pass`, `issue-loop` | control, basics |
+| `@whiletrue-ai/core` | Module, strategy and runner interfaces, registry, config loader, validator, scheduler, store interface, event bus | none |
+| `@whiletrue-ai/store-sqlite` | SQLite `StateStore` | core |
+| `@whiletrue-ai/control` | Strategies: `sequence`, `loop`, `map`, `parallel`, `switch`, `retry`, `try` | core |
+| `@whiletrue-ai/basics` | `shell`, `exec`, `gate.*`, `human.*`, `context.*`, `session.*`, sources `json` and `markdown_tasks` | core |
+| `@whiletrue-ai/claude-code` | Interactive and headless runners, plus the bundled Claude Code plugin (MCP server and hooks) | core |
+| `@whiletrue-ai/opencode` | opencode runner | core |
+| `@whiletrue-ai/git` | `git-worktree` workspace, commit, push, diff modules | core |
+| `@whiletrue-ai/github` | `github_issues` source, PR, review, merge and wake conditions | core, git |
+| `@whiletrue-ai/tmux` | TUI: session, panes, control panel | core |
+| `@whiletrue-ai/cli` | The `whiletrue` command; loads plugins listed in `whiletrue.yaml` | all of the above as defaults |
+| `@whiletrue-ai/recipes` | Shareable composites: `ralph`, `review-pass`, `issue-loop` | control, basics |
 
 ### CLI surface (v0.1)
 

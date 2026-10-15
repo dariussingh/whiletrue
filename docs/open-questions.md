@@ -9,11 +9,11 @@
 | 5 | Convention for spec links in issue bodies (e.g. `spec: specs/m3/api.md#L40-L88`) so the knowledge provider can parse them | M3/M4 |
 | 6 | ~~Expression language for `until:` and templates~~ **Resolved: CEL** behind an `Expr` interface (`parse`, `check(schema)`, `eval(scope)`), pending a half-day spike. See below. | M1 |
 | 7 | ~~License: MIT or Apache-2.0~~ **Resolved: MIT** | Done |
-| 8 | Claim `@whiletrue` npm org and a GitHub org | Before first publish |
+| 8 | ~~Claim npm org / GitHub org~~ **Resolved:** npm org `whiletrue-ai` (`@whiletrue` taken); packages are `@whiletrue-ai/*`, CLI binary stays `whiletrue`. No GitHub org needed. | Done |
 
 ## Decision: expression language (OQ-6)
 
-**Choice:** CEL (Common Expression Language), wrapped behind an `Expr` interface in `@whiletrue/core` so the engine can be swapped.
+**Choice:** CEL (Common Expression Language), wrapped behind an `Expr` interface in `@whiletrue-ai/core` so the engine can be swapped.
 
 **Why:** not Turing-complete, no I/O or side effects (safe without a custom sandbox); statically typed, so expressions are checked against port caps at `validate`/`plan` time ("validate before spending"); pure and deterministic, so safe for replay and cache hashing; familiar syntax.
 
