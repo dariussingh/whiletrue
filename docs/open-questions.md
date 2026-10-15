@@ -8,5 +8,5 @@
 | 4 | For `session: item` across retries, how does resume behave when the working directory has changed? | M3 |
 | 5 | Convention for spec links in issue bodies (e.g. `spec: specs/m3/api.md#L40-L88`) so the knowledge provider can parse them | M3/M4 |
 | 6 | Expression language for `until:` and templates: safe, sandboxed, no arbitrary JavaScript | M1 |
-| 7 | License: MIT or Apache-2.0 | Before first publish |
+| 7 | ~~License: MIT or Apache-2.0~~ **Resolved: MIT** | Done |
 | 8 | Claim `@whiletrue` npm org and a GitHub org | Before first publish |

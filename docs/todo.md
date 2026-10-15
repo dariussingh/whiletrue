@@ -4,7 +4,7 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 
 ## Phase 0 · Repo & decisions
 1. [ ] Create GitHub repo `dariussingh/whiletrue`; push initial commit (docs).
-2. [ ] Decide license (MIT vs Apache-2.0) and add `LICENSE`. (OQ-7)
+2. [x] License decided: MIT (`LICENSE` added). (OQ-7)
 3. [ ] Claim `@whiletrue` npm org and a GitHub org. (OQ-8)
 4. [ ] Scaffold pnpm workspace: `pnpm-workspace.yaml`, root `package.json`, `tsconfig.base.json` (strict), `packages/`.
 5. [ ] Tooling: ESLint, Prettier, Vitest, coverage thresholds, `.editorconfig`, `.nvmrc`.
