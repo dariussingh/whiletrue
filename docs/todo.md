@@ -30,7 +30,7 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 23. [ ] **M0 exit:** a bounded Ralph loop runs on the headless runner against a toy repo (integration test with a fake runner + one real smoke run).
 
 ## Phase M1 · Control flow & composites
-24. [ ] Choose expression language for `until:`/templates; implement sandboxed evaluator. (OQ-6)
+24. [ ] Spike CEL libraries for JS (schema type-check, restricted functions, timeout/cost limit); pick one or fall back to Jexl + own cap checker. Implement the `Expr` interface (`parse`, `check`, `eval`) and sandboxed evaluator for `until:`/templates. (OQ-6, decided: CEL)
 25. [ ] `@whiletrue/control`: `sequence` with automatic `out → in` wiring and explicit `wires:`.
 26. [ ] `loop` (`max`/`max: unbounded`, `until`, `over`, `collect`).
 27. [ ] `map` (sequential first), `parallel`, `switch`.
