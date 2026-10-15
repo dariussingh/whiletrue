@@ -12,6 +12,9 @@
     },
     {
       "path": "packages/claude-code"
+    },
+    {
+      "path": "packages/control"
     }
   ]
 }

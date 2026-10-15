@@ -1,0 +1,30 @@
+{
+  "name": "@whiletrue-ai/control",
+  "version": "0.0.0",
+  "description": "Control-flow strategies for whiletrue",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dariussingh/whiletrue.git",
+    "directory": "packages/control"
+  },
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@whiletrue-ai/core": "workspace:*",
+    "zod": "^4.6.7"
+  }
+}
