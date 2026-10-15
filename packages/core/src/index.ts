@@ -9,3 +9,4 @@ export * from "./duration.js";
 export * from "./template.js";
 export * from "./validate.js";
 export * from "./events.js";
+export * from "./store.js";
