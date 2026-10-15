@@ -413,7 +413,7 @@ The pipeline exercises every core feature: the item graph, parallel worktrees, r
 
 ## Packages and repo layout
 
-One pnpm-workspace monorepo publishes everything under the `@whiletrue` npm scope. The core has no knowledge of git, GitHub, tmux or any specific agent.
+One pnpm-workspace monorepo publishes everything under the `@whiletrue-ai` npm scope. The core has no knowledge of git, GitHub, tmux or any specific agent.
 
 | Package | Contents | Depends on |
 |---|---|---|
@@ -455,4 +455,4 @@ M2 and M3 both build on M1 and don't depend on each other, so they can run in pa
 - For `session: item` across retries, the resumed session must run in the same worktree. Confirm how resume behaves when the working directory has changed.
 - Pick the convention for spec links in issue bodies (for example `spec: specs/m3/api.md#L40-L88`) so the knowledge provider can parse them.
 - Choose the expression language for `until:` and templates. It needs to be safe and sandboxed, with no arbitrary JavaScript.
-- Choose a license (MIT or Apache-2.0), and claim the `@whiletrue` npm org and a GitHub org.
+- Choose a license (MIT or Apache-2.0). (Resolved: npm org `whiletrue-ai`.)

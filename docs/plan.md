@@ -81,7 +81,7 @@ M0 Core engine
 ## v0.1 release gate
 - Reference pipeline merges a real milestone, 4 items parallel, with at least one `rejected` → fix route and one crash/resume exercised.
 - All CLI commands in the v0.1 surface exist and are documented.
-- Coverage floor met; docs check green; license chosen; packages published under `@whiletrue`.
+- Coverage floor met; docs check green; license chosen; packages published under `@whiletrue-ai`.
 
 ## Risks and spikes
 | Risk | Mitigation | When |
