@@ -14,5 +14,5 @@ Use pnpm (`npx -y pnpm@12.11.2 <cmd>` if pnpm isn't installed; corepack is broke
 - TDD; coverage floor lives in `vitest.config.ts`, ratchet it up, never down.
 - Update user docs and `docs/architecture.md` in the same change as behavior.
 - `@whiletrue-ai/core` must not import git, GitHub, tmux, or any agent. Built-ins use only the public plugin API.
-- One issue per branch and PR. The human reviews every line before merge.
+- Track work in `docs/todo.md` (no GitHub issues for now). One todo item (or small group) per commit/PR. The human reviews every line before merge.
 - Commit trailer: `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`.

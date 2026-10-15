@@ -1,5 +1,7 @@
 # Implementation TODO (ordered)
 
+> Tracking lives in this file, not GitHub issues, until whiletrue can run its own workflow (dogfooding starts at M1).
+
 Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is done when its **Exit** line is demonstrably true. Each item: tests first, docs updated in the same change. See [plan.md](plan.md).
 
 ## Phase 0 · Repo & decisions
@@ -11,7 +13,7 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 5. [x] Tooling: ESLint, Prettier, Vitest, coverage thresholds, `.editorconfig`, `.nvmrc`.
 6. [x] CI (GitHub Actions): install, lint, typecheck, test+coverage, `docs:check`.
 7. [x] `docs:check` script (fails when public behavior changes without doc updates; start with link/example validation).
-8. [ ] `CLAUDE.md`, issue and PR templates: done. Remaining: create GitHub milestones M0–M4 and file issues from this list (needs owner OK).
+8. [x] `CLAUDE.md`, issue and PR templates added. GitHub milestones and issues deliberately **not** created: until whiletrue's own workflow exists, progress is tracked in `docs/todo.md` only.
 
 ## Phase M0 · Core engine
 
