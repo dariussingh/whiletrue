@@ -15,6 +15,9 @@
     },
     {
       "path": "packages/control"
+    },
+    {
+      "path": "packages/cli"
     }
   ]
 }

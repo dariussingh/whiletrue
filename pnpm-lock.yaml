@@ -209,6 +209,24 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
 
+  packages/cli:
+    dependencies:
+      '@whiletrue-ai/basics':
+        specifier: workspace:*
+        version: link:../basics
+      '@whiletrue-ai/claude-code':
+        specifier: workspace:*
+        version: link:../claude-code
+      '@whiletrue-ai/control':
+        specifier: workspace:*
+        version: link:../control
+      '@whiletrue-ai/core':
+        specifier: workspace:*
+        version: link:../core
+      '@whiletrue-ai/store-sqlite':
+        specifier: workspace:*
+        version: link:../store-sqlite
+
   packages/control:
     dependencies:
       '@whiletrue-ai/core':
