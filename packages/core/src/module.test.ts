@@ -40,8 +40,8 @@ describe("defineAction", () => {
     expect(defineAction(mod)).toBe(mod);
   });
 
-  it("accepts dotted ids like gate.tests", () => {
-    expect(defineAction({ ...shellModule(), id: "gate.tests" }).id).toBe("gate.tests");
+  it("accepts dotted ids like git.commit", () => {
+    expect(defineAction({ ...shellModule(), id: "git.commit" }).id).toBe("git.commit");
   });
 
   it.each(["", "Shell", "gate.", ".gate", "gate..x", "1gate", "has space"])(
@@ -59,6 +59,15 @@ describe("defineAction", () => {
   it("rejects an unknown effect", () => {
     const bad = { ...shellModule(), effects: "magic" } as unknown as ActionModule<unknown>;
     expect(() => defineAction(bad)).toThrow(/effect/);
+  });
+
+  it("requires gates to be deterministic", () => {
+    expect(() => defineAction({ ...shellModule(), id: "gate.x", effects: "agentic" })).toThrow(
+      /gates must be deterministic/,
+    );
+    expect(() =>
+      defineAction({ ...shellModule(), id: "gate.x", effects: "deterministic" }),
+    ).not.toThrow();
   });
 
   it("rejects duplicate port names within a direction", () => {

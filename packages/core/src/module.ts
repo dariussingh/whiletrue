@@ -41,6 +41,14 @@ export interface CompositeContext<Cfg> extends StepContext<Cfg> {
   run(child: Node, input: PortValues): Promise<Emit>;
 }
 
+export type Severity = "error" | "warning";
+
+/** A static-validation finding about a config (never thrown at run time). */
+export interface ConfigIssue {
+  severity: Severity;
+  message: string;
+}
+
 export interface ModuleMeta<Cfg> {
   id: string; // e.g. 'gate.tests'
   kind: "action" | "composite";
@@ -52,12 +60,20 @@ export interface ModuleMeta<Cfg> {
 
 export interface ActionModule<Cfg> extends ModuleMeta<Cfg> {
   kind: "action";
+  /** Extra static checks beyond the config schema (e.g. agent limits). */
+  validate?(config: Cfg): ConfigIssue[];
+  /** Required for `side-effect` modules: a deterministic key so resume never repeats the effect. */
+  idempotencyKey?(input: PortValues, ctx: StepContext<Cfg>): string;
   run(input: PortValues, ctx: StepContext<Cfg>): Promise<Emit>;
 }
 
 export interface Strategy<Cfg> {
   id: string; // e.g. 'loop'
   config: ZodType<Cfg>;
+  /** Children are chained: each child's `out` feeds the next child's `in`. */
+  chain?: boolean;
+  /** Extra static checks beyond the config schema (e.g. loops must be bounded). */
+  validate?(config: Cfg): ConfigIssue[];
   run(children: Node[], input: PortValues, ctx: CompositeContext<Cfg>): Promise<Emit>;
 }
 
@@ -94,6 +110,12 @@ export function defineAction<Cfg>(mod: ActionModule<Cfg>): ActionModule<Cfg> {
   }
   if (!isEffect(mod.effects)) {
     throw new ModuleDefinitionError(mod.id, `unknown effect '${String(mod.effects)}'`);
+  }
+  if (mod.id.startsWith("gate.") && mod.effects !== "deterministic") {
+    throw new ModuleDefinitionError(
+      mod.id,
+      "gates must be deterministic: an agent can never grade itself",
+    );
   }
   checkPorts(mod.id, "in", mod.ports.in);
   checkPorts(mod.id, "out", mod.ports.out);
