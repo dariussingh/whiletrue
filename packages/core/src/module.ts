@@ -1,8 +1,13 @@
 import type { ZodType } from "zod";
+import type { PipelineNode } from "./config.js";
+import type { CompositeContext, StepContext } from "./context.js";
 
 /** How a module may touch the world. Drives the safety rules (see architecture.md). */
 export const EFFECTS = ["pure", "deterministic", "agentic", "side-effect"] as const;
 export type Effect = (typeof EFFECTS)[number];
+
+/** A child in a composite's tree. */
+export type Node = PipelineNode;
 
 export function isEffect(value: unknown): value is Effect {
   return typeof value === "string" && (EFFECTS as readonly string[]).includes(value);
@@ -22,23 +27,6 @@ export type PortValues = Record<string, unknown>;
 export interface Emit {
   port: string;
   value?: unknown;
-}
-
-/** A child in a composite's tree. Expanded when the config loader lands. */
-export interface Node {
-  id: string;
-  module: string;
-  config?: unknown;
-}
-
-/** Context handed to an action. Grows (workspace, sessions, bus, logger, ...) with the context item. */
-export interface StepContext<Cfg> {
-  readonly config: Cfg;
-}
-
-/** Context handed to a strategy. Children run only through `run`, so every execution is recorded. */
-export interface CompositeContext<Cfg> extends StepContext<Cfg> {
-  run(child: Node, input: PortValues): Promise<Emit>;
 }
 
 export type Severity = "error" | "warning";
@@ -74,7 +62,7 @@ export interface Strategy<Cfg> {
   chain?: boolean;
   /** Extra static checks beyond the config schema (e.g. loops must be bounded). */
   validate?(config: Cfg): ConfigIssue[];
-  run(children: Node[], input: PortValues, ctx: CompositeContext<Cfg>): Promise<Emit>;
+  run(children: PipelineNode[], input: PortValues, ctx: CompositeContext<Cfg>): Promise<Emit>;
 }
 
 export class ModuleDefinitionError extends Error {

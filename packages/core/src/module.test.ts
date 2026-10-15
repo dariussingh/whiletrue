@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { createStepContext } from "./context.js";
 import {
   EFFECTS,
   ModuleDefinitionError,
@@ -125,7 +126,7 @@ describe("defineStrategy", () => {
 describe("run contract", () => {
   it("an action emits a port and value", async () => {
     const mod = defineAction(shellModule());
-    const emit = await mod.run({}, { config: { run: "echo hi" } });
+    const emit = await mod.run({}, createStepContext({ run: "echo hi" }));
     expect(emit).toEqual({ port: "ok", value: "echo hi" });
   });
 });
