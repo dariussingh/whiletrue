@@ -1,12 +1,12 @@
 # whiletrue Architecture
 
-> **Naming note:** the source doc says `@whiletrue/*`; that npm scope was unavailable, so packages are published as `@whiletrue-ai/*`. The CLI binary is still `whiletrue`.
+> **Implementation note:** the source doc sketches a TypeScript monorepo (`@whiletrue/*`). The implementation is **Python** (3.12+), one `whiletrue` distribution on PyPI with `whiletrue.<package>` subpackages. The design below is language-neutral; interface sketches are in Python. The CLI binary is `whiletrue`.
 
 > Source of truth: the "whiletrue Architecture" Claude doc (rev 18, 2026-10-15). Diagrams live there; this file is the repo copy. Keep both in sync.
 
 ## Overview
 
-whiletrue (`@whiletrue-ai/cli`) is a local, single-machine TypeScript orchestrator that runs configurable pipelines of agentic and deterministic steps around coding agents like Claude Code and opencode. It runs outside Claude Code and drives it as a subprocess.
+whiletrue is a local, single-machine Python orchestrator that runs configurable pipelines of agentic and deterministic steps around coding agents like Claude Code and opencode. It runs outside Claude Code and drives it as a subprocess.
 
 Positioning: **LangGraph builds the agent; whiletrue runs the loop around agents you already have.** Fixed-pipeline tools such as ralphex, and persona tools such as ralph-orchestrator, let you tune their steps. whiletrue lets you change the shape of the loop itself.
 
@@ -56,33 +56,38 @@ Modules connect through **typed ports**, as GStreamer elements connect through p
 
 - Every module has a default `in` and `out` data port, and may declare more.
 - Every module has **outcome ports**: `ok`, `fail`, `needs_human`, `skip`, and optionally `rejected`. A port that isn't wired falls back to the composite's policy, for example "park on `fail`".
-- **Caps** are schemas on ports: `Issue`, `Diff`, `PullRequest`, `Verdict`, `ReviewFindings`, `Text`, `Any`. They are JSON Schema, authored with zod in TypeScript.
+- **Caps** are schemas on ports: `Issue`, `Diff`, `PullRequest`, `Verdict`, `ReviewFindings`, `Text`, `Any`. They are JSON Schema, authored as pydantic models.
 - Inside a `sequence`, `out → in` is wired automatically. Explicit `wires:` are needed only for fan-out, routing or skipping.
 - `whiletrue validate` checks that every wire connects compatible caps. At runtime, agent outputs are validated against their port's caps before they move on.
 
 ### Module interface (sketch)
 
-```ts
-interface ModuleMeta<Cfg> {
-  id: string                       // 'gate.tests'
-  kind: 'action' | 'composite'
-  config: ZodType<Cfg>
-  ports: { in: PortSpec[]; out: PortSpec[] }   // caps per port
-  effects: 'pure' | 'deterministic' | 'agentic' | 'side-effect'
-  capabilities?: string[]          // e.g. 'needs-workspace', 'needs-session'
-}
+```python
+@dataclass
+class ActionModule[Cfg: BaseModel]:
+    id: str  # 'gate.tests'
+    config: type[Cfg]  # pydantic model
+    ports: Ports  # inputs / outputs, caps per port
+    effects: Literal["pure", "deterministic", "agentic", "side-effect"]
+    run: Callable[[PortValues, StepContext[Cfg]], Awaitable[Emit]]
+    capabilities: list[str] = []  # e.g. 'needs-workspace', 'needs-session'
+    validate: Callable[[Cfg, ValidateContext], list[ConfigIssue]] | None = None
+    idempotency_key: Callable[[PortValues, StepContext[Cfg]], str] | None = None
 
-interface ActionModule<Cfg> extends ModuleMeta<Cfg> {
-  run(input: PortValues, ctx: StepContext<Cfg>): Promise<Emit>
-}
 
-interface Strategy<Cfg> {
-  id: string                       // 'loop'
-  config: ZodType<Cfg>             // until, max, over, parallel ...
-  run(children: Node[], input: PortValues, ctx: CompositeContext<Cfg>): Promise<Emit>
-}
+@dataclass
+class Strategy[Cfg: BaseModel]:
+    id: str  # 'loop'
+    config: type[Cfg]  # until, max, over, parallel ...
+    run: Callable[[list[PipelineNode], PortValues, CompositeContext[Cfg]], Awaitable[Emit]]
+    chain: bool = False  # children's out -> next in
+    validate: Callable[[Cfg, ValidateContext], list[ConfigIssue]] | None = None
 
-type Emit = { port: string; value?: unknown }   // which port fires, with what
+
+@dataclass
+class Emit:  # which port fires, with what
+    port: str
+    value: Any = None
 ```
 
 - `effects` drives the safety rules. Gates must be `deterministic`, `side-effect` modules must journal their work, and `pure` and `deterministic` results can be cached by input hash.
@@ -102,7 +107,7 @@ There are four authoring layers, each a step deeper than the last. Most users st
 | Pipelines | YAML | Composing modules into a loop you run |
 | Composites | YAML with declared ports and params | Reusable, shareable sub-loops such as `review-pass` or `ralph`, imported with `uses:` |
 | Agent modules | Markdown with frontmatter | A prompt-defined agent step: runner, model, tools, permissions, and input and output caps |
-| Plugins | TypeScript (npm) | New actions, strategies, runners, sources, stores and workspaces |
+| Plugins | Python (PyPI, entry points) | New actions, strategies, runners, sources, stores and workspaces |
 
 The `exec` module is an escape hatch: it runs any executable that speaks JSON over stdin and stdout, so a module can be written in any language.
 
@@ -128,7 +133,7 @@ agent: implement
 runner: claude-code
 model: opus
 session: item            # fresh | item | <named>
-tools: [Read, Edit, Write, "Bash(npm test*)", "Bash(git *)"]
+tools: [Read, Edit, Write, "Bash(make test*)", "Bash(git *)"]
 permission_mode: acceptEdits
 inputs:  { issue: Issue }
 outputs: { result: ImplementResult }   # enforced through whiletrue_submit
@@ -357,7 +362,7 @@ The v0.1 acceptance test is the author's workflow, steps 8 to 11, running end to
 ```yaml
 # whiletrue.yaml
 name: milestone-loop
-uses: ["@whiletrue-ai/github", "@whiletrue-ai/git", "@whiletrue-ai/opencode"]
+uses: [whiletrue.github, whiletrue.git, whiletrue.opencode]
 on_idle: exit
 
 source:
@@ -374,8 +379,8 @@ pipeline:
         retry: { max: 3, feedback: true }
         do:
           - agent: { uses: ./agents/implement.md, session: item }
-          - gate.shell: { run: "npm test && npm run coverage:check" }
-          - gate.shell: { run: "npm run docs:check" }
+          - gate.shell: { run: "make test && make coverage-check" }
+          - gate.shell: { run: "make docs-check" }
           - gate.diff_size: { max_lines: 700 }
       - git.commit_push: {}
       - id: pr
@@ -398,9 +403,9 @@ pipeline:
           max: 3
           until: "{{steps.fix.output.unanswered == 0}}"
           do:
-            - uses: "@whiletrue-ai/recipes/review-respond"   # classify, fix, reply per thread
+            - uses: "whiletrue.recipes/review-respond"   # classify, fix, reply per thread
               with: { session: item }
-            - gate.shell: { run: "npm test" }
+            - gate.shell: { run: "make test" }
             - gate.comments_answered: {}
 
       - github.sync_base: { strategy: rebase }   # resolves conflicts or parks
@@ -413,21 +418,21 @@ The pipeline exercises every core feature: the item graph, parallel worktrees, r
 
 ## Packages and repo layout
 
-One pnpm-workspace monorepo publishes everything under the `@whiletrue-ai` npm scope. The core has no knowledge of git, GitHub, tmux or any specific agent.
+One Python distribution, `whiletrue`, published to PyPI. Each row below is a subpackage (`whiletrue.<name>`); the core has no knowledge of git, GitHub, tmux or any specific agent, and that boundary is enforced by an import test. Third-party plugins are separate distributions that advertise a `Plugin` under the `whiletrue.plugins` entry-point group (or a module exposing `plugin`), and are named in `uses:`.
 
 | Package | Contents | Depends on |
 |---|---|---|
-| `@whiletrue-ai/core` | Module, strategy and runner interfaces, registry, config loader, validator, scheduler, store interface, event bus | none |
-| `@whiletrue-ai/store-sqlite` | SQLite `StateStore` | core |
-| `@whiletrue-ai/control` | Strategies: `sequence`, `loop`, `map`, `parallel`, `switch`, `retry`, `try` | core |
-| `@whiletrue-ai/basics` | `shell`, `exec`, `gate.*`, `human.*`, `context.*`, `session.*`, sources `json` and `markdown_tasks` | core |
-| `@whiletrue-ai/claude-code` | Interactive and headless runners, plus the bundled Claude Code plugin (MCP server and hooks) | core |
-| `@whiletrue-ai/opencode` | opencode runner | core |
-| `@whiletrue-ai/git` | `git-worktree` workspace, commit, push, diff modules | core |
-| `@whiletrue-ai/github` | `github_issues` source, PR, review, merge and wake conditions | core, git |
-| `@whiletrue-ai/tmux` | TUI: session, panes, control panel | core |
-| `@whiletrue-ai/cli` | The `whiletrue` command; loads plugins listed in `whiletrue.yaml` | all of the above as defaults |
-| `@whiletrue-ai/recipes` | Shareable composites: `ralph`, `review-pass`, `issue-loop` | control, basics |
+| `whiletrue.core` | Module, strategy and runner interfaces, registry, config loader, validator, scheduler, store interface, event bus | none |
+| `whiletrue.store_sqlite` | SQLite `StateStore` (stdlib `sqlite3`) | core |
+| `whiletrue.control` | Strategies: `sequence`, `loop`, `map`, `parallel`, `switch`, `retry`, `try` | core |
+| `whiletrue.basics` | `shell`, `exec`, `agent`, `gate.*`, `human.*`, `context.*`, `session.*`, sources `json` and `markdown_tasks` | core |
+| `whiletrue.claude_code` | Interactive and headless runners, plus the bundled Claude Code plugin (MCP server and hooks) | core |
+| `whiletrue.opencode` | opencode runner | core |
+| `whiletrue.git` | `git-worktree` workspace, commit, push, diff modules | core |
+| `whiletrue.github` | `github_issues` source, PR, review, merge and wake conditions | core, git |
+| `whiletrue.tmux` | TUI: session, panes, control panel | core |
+| `whiletrue.cli` | The `whiletrue` command; loads plugins listed in `whiletrue.yaml` | all of the above as defaults |
+| `whiletrue.recipes` | Shareable composites: `ralph`, `review-pass`, `issue-loop` | control, basics |
 
 ### CLI surface (v0.1)
 
@@ -454,5 +459,5 @@ M2 and M3 both build on M1 and don't depend on each other, so they can run in pa
 - After a whiletrue crash, should we re-attach to the still-running tmux pane, or restart it with `claude --resume`?
 - For `session: item` across retries, the resumed session must run in the same worktree. Confirm how resume behaves when the working directory has changed.
 - Pick the convention for spec links in issue bodies (for example `spec: specs/m3/api.md#L40-L88`) so the knowledge provider can parse them.
-- Choose the expression language for `until:` and templates. It needs to be safe and sandboxed, with no arbitrary JavaScript.
-- Choose a license (MIT or Apache-2.0). (Resolved: npm org `whiletrue-ai`.)
+- Choose the expression language for `until:` and templates. It needs to be safe and sandboxed, with no arbitrary Python or JavaScript.
+- Choose a license (MIT or Apache-2.0). (Resolved: MIT.)

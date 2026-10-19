@@ -1,10 +1,10 @@
 # M0 smoke test (real Claude Code)
 
-The automated M0 exit test (`packages/cli/src/cli.test.ts`) drives a Ralph loop with a fake `claude`.
+The automated M0 exit test (`tests/integration/test_cli.py`) drives a Ralph loop with a fake `claude`.
 This is the manual counterpart against the real binary. It costs a few tenths of a cent.
 
 ```bash
-devenv shell -- pnpm build
+W=$PWD                      # the whiletrue checkout
 S=$(mktemp -d); mkdir -p $S/agents; cd $S
 cat > whiletrue.yaml <<'YAML'
 name: smoke
@@ -26,10 +26,11 @@ limits: { budget_usd: 0.5, turns: 6, wall: 3m }
 ---
 Create a file named done.txt in the current directory containing exactly the word hello. Previous failure output, if any: {{loop.previous}}
 MD
-node /path/to/whiletrue/packages/cli/dist/bin.js validate
-node /path/to/whiletrue/packages/cli/dist/bin.js plan
-node /path/to/whiletrue/packages/cli/dist/bin.js run
-node /path/to/whiletrue/packages/cli/dist/bin.js status
+WT="$W/.devenv/state/venv/bin/whiletrue"
+$WT validate
+$WT plan
+$WT run
+$WT status
 ```
 
 **Result on 2026-10-15:** `run: done`, one loop iteration, 3 steps, cost $0.0028; `done.txt` contained `hello`.

@@ -9,18 +9,20 @@
     tmux
   ];
 
-  languages.javascript = {
+  languages.python = {
     enable = true;
-    package = pkgs.nodejs_24;
-    pnpm = {
+    version = "3.12";
+    uv = {
       enable = true;
-      install.enable = true;
+      sync.enable = true;
+      sync.allGroups = true;
     };
   };
 
-  scripts.check.exec = "pnpm check";
+  scripts.check.exec = "uv run poe check";
 
   enterShell = ''
-    echo "whiletrue devenv: node $(node -v), pnpm $(pnpm -v)"
+    . .devenv/state/venv/bin/activate
+    echo "whiletrue devenv: $(python --version), uv $(uv --version | cut -d' ' -f2)"
   '';
 }

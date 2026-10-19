@@ -1,6 +1,8 @@
 inputs:
   nixpkgs:
     url: github:NixOS/nixpkgs/nixpkgs-unstable
+  nixpkgs-python:
+    url: github:cachix/nixpkgs-python
 
 # If you're willing to use a package that's vulnerable
 # permittedInsecurePackages:

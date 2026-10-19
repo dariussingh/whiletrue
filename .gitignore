@@ -1,7 +1,11 @@
-node_modules/
+__pycache__/
+*.py[cod]
+.venv/
 dist/
+.coverage
 coverage/
-*.tsbuildinfo
+.pytest_cache/
+.ruff_cache/
 .whiletrue/
 .env
 .env.*
