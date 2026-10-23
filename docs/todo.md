@@ -15,7 +15,7 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 7. [x] `docs-check` script (`scripts/docs_check.py`) (fails when public behavior changes without doc updates; start with link/example validation).
 8. [x] `CLAUDE.md`, issue and PR templates added. GitHub milestones and issues deliberately **not** created: until whiletrue's own workflow exists, progress is tracked in `docs/todo.md` only.
 
-       8.5. [x] **Port to Python (2026-10-16, owner decision, OQ-9).** The TypeScript implementation (M0, commits up to `8ba9bf7`) was re-implemented 1:1 in Python 3.12 (`src/whiletrue/`, 260 tests, ~99% coverage) and the TS tree removed. Naming: `@whiletrue-ai/<x>` became `whiletrue.<x>` (`store-sqlite` → `store_sqlite`, `claude-code` → `claude_code`); camelCase became snake_case (`runId` → `run_id`, `defineAction` → `define_action`, `idempotencyKey` → `idempotency_key`); zod → pydantic; vitest → pytest; devenv switched to the Python template; npm publishing (item 76) became PyPI. Deliberate behavior differences: YAML is read as YAML 1.2-ish (only `true`/`false` are booleans, timestamps stay strings); the built-in plugin names are `whiletrue.basics|control|claude_code`; third-party plugins are found via the `whiletrue.plugins` entry-point group or an importable module exposing `plugin`; `init` scaffolds `make test` as the gate.
+       8.5. [x] **Port to Python (2026-10-16, owner decision, OQ-9).** The TypeScript implementation (M0, commits up to `8ba9bf7`) was re-implemented 1:1 in Python 3.12 (`src/whiletrue/`, 260 tests, ~99% coverage) and the TS tree removed. Naming: `@whiletrue-ai/<x>` became `whiletrue.<x>` (`store-sqlite` → `store_sqlite`, `claude-code` → `claude_code`); camelCase became snake_case (`runId` → `run_id`, `defineAction` → `define_action`, `idempotencyKey` → `idempotency_key`); zod → pydantic; vitest → pytest; devenv switched to the Python template; npm publishing (item 76) became PyPI. Deliberate behavior differences: YAML is read as YAML 1.2-ish (only `true`/`false` are booleans, timestamps stay strings); the built-in plugin names are `whiletrue.basics|control|claude_code`; third-party plugins are found via the `whiletrue.plugins` entry-point group or an importable module exposing `plugin`; `init` scaffolds `pytest` as the gate.
 
 ## Phase M0 · Core engine
 
@@ -40,7 +40,7 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 
 ## Phase M1 · Control flow & composites
 
-24. [ ] Spike Python CEL libraries (`cel-python`, `common-expression-language`: schema type-check, restricted functions, timeout/cost limit); pick one or fall back to a small whiletrue-owned subset + own cap checker. Implement the `Expr` interface (`parse`, `check`, `eval`) and sandboxed evaluator for `until:`/templates. (OQ-6, decided: CEL)
+24. [x] Spike Python CEL libraries (`cel-python`, `common-expression-language`: schema type-check, restricted functions, timeout/cost limit); pick one or fall back to a small whiletrue-owned subset + own cap checker. Implement the `Expr` interface (`parse`, `check`, `eval`) and sandboxed evaluator for `until:`/templates. (OQ-6, decided: CEL)
 25. [ ] `whiletrue.control`: `sequence` with automatic `out → in` wiring and explicit `wires:`.
 26. [ ] `loop` (`max`/`max: unbounded`, `until`, `over`, `collect`).
 27. [ ] `map` (sequential first), `parallel`, `switch`.

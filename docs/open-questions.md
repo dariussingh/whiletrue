@@ -21,3 +21,24 @@
 **Rejected:** JSONata (more than needed, weaker static checks); Jexl / expr-eval (fine fallback, no static typing); Python `eval` / `exec` (not a real sandbox).
 
 **Risk:** Python CEL libraries (`cel-python`, pure Python; `common-expression-language`, Rust-backed) are less proven than the Go/Java ones. A spike must confirm: type-checking against a schema, a restricted function set, and a timeout/cost limit. If none pass, fall back to a small whiletrue-owned expression subset plus its own cap checker.
+
+### Spike result (2026-10-22, todo 24)
+
+**Picked `common-expression-language` (Rust-backed, 0.10).** `whiletrue.core.expr` wraps it as `parse_expr` → `Expr` (`check`, `eval`, `eval_bool`).
+
+| | `common-expression-language` | `cel-python` |
+|---|---|---|
+| Install | wheels, no native deps | needs `google-re2` (native); fails to import on NixOS without `libstdc++` on `LD_LIBRARY_PATH` |
+| Speed | 1000 nested iterations in ~0.5 ms | ~120 ms |
+| Static analysis | `compile().references()` lists variables and functions | none |
+| Schema type-check | no | no |
+| Timeout / cost limit | none (native call, not interruptible) | none |
+| Reserved word `loop` | rejected | accepted |
+
+What `Expr.check` therefore does: unknown-variable and function-allow-list checks, not full cap type-checking. Cap-level checking of expressions is deferred to the validator, using port caps for the variables. Mitigation for the missing limits: a 4096-character cap on the source, and CEL being non-Turing-complete.
+
+**Consequence:** `loop` is a reserved CEL word, so expressions refer to the loop scope as `iter` (`iter.i`, `iter.previous`). Templates (`{{loop.previous}}`) still use `loop` for now. See OQ-10.
+
+## OQ-10: one name for the loop scope?
+
+Templates use `loop.*`, CEL must use `iter.*`. Rename the template scope to `iter` too (one name everywhere, small breaking change to the Ralph template and `docs/architecture.md`), or keep both? Recommendation: rename to `iter` when item 26 wires `until:`.

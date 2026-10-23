@@ -22,6 +22,7 @@ from whiletrue.core.context import (
 )
 from whiletrue.core.duration import parse_duration
 from whiletrue.core.events import EventBus, WtEvent
+from whiletrue.core.expr import Expr, ExprError, parse_expr
 from whiletrue.core.memory_store import MemoryStore
 from whiletrue.core.module import (
     EFFECTS,
@@ -88,6 +89,8 @@ __all__ = [
     "Emit",
     "EmptyConfig",
     "EventBus",
+    "Expr",
+    "ExprError",
     "ItemOutcome",
     "ItemRecord",
     "ItemState",
@@ -135,6 +138,7 @@ __all__ = [
     "load_pipeline",
     "parse_agent_definition",
     "parse_duration",
+    "parse_expr",
     "parse_pipeline",
     "render_deep",
     "render_template",
