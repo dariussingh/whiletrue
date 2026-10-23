@@ -19,10 +19,13 @@ from whiletrue.core import (
     PipelineConfig,
     PipelineNode,
     Registry,
+    ReplayError,
     check_lock,
     format_diagnostic,
     has_errors,
+    hash_pipeline,
     load_pipeline,
+    load_recording,
     read_lock,
     run_pipeline,
     sha256_file,
@@ -50,6 +53,7 @@ Commands:
   plan              Print the expanded pipeline tree (no tokens spent)
   run               Run the pipeline
   status [run]      Show the latest (or given) run
+  replay [run]      Re-run a recorded run's logic without calling agents or tools
   lock              Pin the plugin versions in use to whiletrue.lock
 
 Options:
@@ -179,6 +183,55 @@ async def _run(io: Io, file: str) -> int:
         store.close()
 
 
+async def _replay(io: Io, file: str, run_id: str | None) -> int:
+    db_path = Path(io.cwd) / ".whiletrue" / "state.db"
+    if not db_path.exists():
+        io.err("No runs yet (.whiletrue/state.db not found)\n")
+        return EXIT.failed
+    loaded = _load(io, file)
+    if isinstance(loaded, int):
+        return loaded
+    if not _validated(io, loaded):
+        return EXIT.failed
+    store = SqliteStore(db_path)
+    try:
+        if run_id is None:
+            latest = store.latest_run()
+            run_id = latest.id if latest else ""
+        try:
+            recording = load_recording(store, run_id)
+        except ReplayError as error:
+            io.err(f"{error}\n")
+            return EXIT.failed
+        if recording.pipeline_hash != hash_pipeline(loaded.config):
+            io.out("note: the pipeline changed since the recorded run\n")
+        result = await run_pipeline(
+            registry=loaded.registry,
+            config=loaded.config,
+            store=store,
+            cwd=loaded.cwd,
+            signal=io.signal,
+            items=recording.items,
+            replay=recording.steps,
+        )
+        io.out(f"replay of {recording.run_id}: run {result.run_id}: {result.status}\n")
+        differences = [
+            f"  {o.item_id}: recorded {recording.item_states.get(o.item_id)}, replayed {o.state}"
+            for o in result.items
+            if recording.item_states.get(o.item_id) != o.state
+        ]
+        if result.status != recording.status or differences:
+            io.err(
+                f"replay differs: recorded {recording.status}, replayed {result.status}\n"
+                + "".join(f"{d}\n" for d in differences)
+            )
+            return EXIT.failed
+        io.out(f"replay matches the recorded run ({recording.status})\n")
+        return EXIT.ok
+    finally:
+        store.close()
+
+
 def _lock_hash(cwd: str) -> str | None:
     path = Path(cwd) / LOCK_FILE
     return sha256_file(path) if path.is_file() else None
@@ -292,6 +345,8 @@ async def main(argv: list[str], io: Io) -> int:
             return EXIT.ok
         case "run":
             return await _run(io, args.file)
+        case "replay":
+            return await _replay(io, args.file, rest[0] if rest else None)
         case "lock":
             return _lock(io, args.file)
         case "status":

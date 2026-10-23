@@ -65,6 +65,7 @@ from whiletrue.core.outcomes import (
     resolve_outcome,
 )
 from whiletrue.core.registry import Plugin, PluginApi, Registry, RegistryError, SimplePlugin
+from whiletrue.core.replay import Recording, ReplayData, ReplayError, load_recording
 from whiletrue.core.runner import (
     AgentLimits,
     AgentRequest,
@@ -122,8 +123,11 @@ __all__ = [
     "PluginApi",
     "PortSpec",
     "Ports",
+    "Recording",
     "Registry",
     "RegistryError",
+    "ReplayData",
+    "ReplayError",
     "Resolution",
     "Resource",
     "RunContext",
@@ -158,6 +162,7 @@ __all__ = [
     "load_agent_definition",
     "load_composite",
     "load_pipeline",
+    "load_recording",
     "parse_agent_definition",
     "parse_composite",
     "parse_duration",

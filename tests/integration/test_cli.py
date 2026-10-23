@@ -451,3 +451,62 @@ class TestLockFile:
         assert run is not None
         assert run.lockfile == sha256_file(cli.dir / "whiletrue.lock")
         store.close()
+
+
+class TestReplay:
+    async def test_replay_reproduces_a_recorded_run_without_calling_the_agent(
+        self, cli: Cli, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project(cli.dir)
+        monkeypatch.setenv("WHILETRUE_CLAUDE_BIN", fake_claude(cli.dir, 3))
+        assert await cli("run") == EXIT.ok
+        run_id = re.search(r"run ([0-9a-f-]{36}): done", cli.out).group(1)  # type: ignore[union-attr]
+        # Remove the fake claude and the flag: a replay must not need either.
+        (cli.dir / "fake-claude.sh").unlink()
+        (cli.dir / "done.flag").unlink()
+        cli.reset()
+        assert await cli("replay", run_id) == EXIT.ok
+        assert f"replay of {run_id}" in cli.out
+        assert "replay matches the recorded run (done)" in cli.out
+        assert (cli.dir / "count").read_text().strip() == "3"  # no new agent calls
+        # Defaults to the latest run.
+        cli.reset()
+        assert await cli("replay") == EXIT.ok
+
+    async def test_replay_of_a_parked_run_matches_too(
+        self, cli: Cli, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project(cli.dir)
+        monkeypatch.setenv("WHILETRUE_CLAUDE_BIN", fake_claude(cli.dir, 99))
+        assert await cli("run") == EXIT.parked
+        cli.reset()
+        assert await cli("replay") == EXIT.ok
+        assert "(parked)" in cli.out
+
+    async def test_replay_reports_a_changed_pipeline_and_divergence(
+        self, cli: Cli, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project(cli.dir)
+        monkeypatch.setenv("WHILETRUE_CLAUDE_BIN", fake_claude(cli.dir, 1))
+        assert await cli("run") == EXIT.ok
+        text = (cli.dir / "whiletrue.yaml").read_text()
+        (cli.dir / "whiletrue.yaml").write_text(
+            text.replace("max: 5", 'max: 5\n    until: "false"')
+        )
+        cli.reset()
+        assert await cli("replay") == EXIT.failed
+        assert "the pipeline changed" in cli.out
+        assert "replay differs" in cli.err
+
+    async def test_replay_error_paths(self, cli: Cli) -> None:
+        project(cli.dir)
+        assert await cli("replay") == EXIT.failed
+        assert "No runs yet" in cli.err
+        (cli.dir / ".whiletrue").mkdir()
+        SqliteStore(cli.dir / ".whiletrue" / "state.db").close()
+        cli.reset()
+        assert await cli("replay", "nope") == EXIT.failed
+        assert 'No run "nope"' in cli.err
+        (cli.dir / "whiletrue.yaml").write_text("pipeline: { nope: {} }")
+        cli.reset()
+        assert await cli("replay") == EXIT.failed

@@ -15,6 +15,7 @@ EventType = Literal[
     "step.finished",
     "step.error",
     "step.cached",
+    "step.replayed",
     "agent.event",
     "log",
 ]

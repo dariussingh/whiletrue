@@ -95,6 +95,8 @@ async def run_pipeline(
     now: Callable[[], int] = _wall_clock_ms,
     #: Recorded on the run (e.g. a hash of whiletrue.lock).
     lockfile: str | None = None,
+    #: Serve recorded results instead of running modules with effects (see `core.replay`).
+    replay: dict[tuple[str, str, int], tuple[str, Any]] | None = None,
 ) -> RunResult:
     """Sequential scheduler: runs each item through the module tree and persists every step.
 
@@ -232,9 +234,29 @@ async def run_pipeline(
                     "step_key": f"{run_id}:{item_id}:{node.id}",
                 }
                 if resolved.kind == "action":
-                    cache_key = _cache_key(module, parsed, input) if config.cache else None
+                    cache_key = (
+                        _cache_key(module, parsed, input)
+                        if config.cache and replay is None
+                        else None
+                    )
                     hit = store.cache_get(cache_key) if cache_key else None
-                    if hit is not None:
+                    recorded = (
+                        replay.get((item_id, node.id, attempt))
+                        if replay is not None and module.effects != "pure"
+                        else None
+                    )
+                    if replay is not None and module.effects != "pure" and recorded is None:
+                        return fail(f"Replay diverged: no recorded result for {node.id}#{attempt}")
+                    if recorded is not None:
+                        emit = Emit(recorded[0], recorded[1])
+                        bus.emit(
+                            "step.replayed",
+                            run_id,
+                            {"node": node.id},
+                            item_id=item_id,
+                            step_id=step_id,
+                        )
+                    elif hit is not None:
                         emit = Emit(hit["port"], hit["value"])
                         bus.emit(
                             "step.cached",
