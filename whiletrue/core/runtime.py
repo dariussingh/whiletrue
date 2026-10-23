@@ -57,6 +57,16 @@ def hash_pipeline(config: PipelineConfig) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+def _cache_key(module: Any, parsed: Any, input: PortValues) -> str | None:
+    """Cache key for pure/deterministic modules that don't read the workspace; else None."""
+    if module.effects not in ("pure", "deterministic") or not module.cacheable:
+        return None
+    payload = json.dumps(
+        [module.id, parsed.model_dump(mode="json"), input], sort_keys=True, default=str
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
 def _noop_log(level: str, message: str, data: dict[str, Any] | None = None) -> None:
     return None
 
@@ -213,7 +223,23 @@ async def run_pipeline(
                     "step_key": f"{run_id}:{item_id}:{node.id}",
                 }
                 if resolved.kind == "action":
-                    emit = await module.run(input, create_step_context(parsed, **base))
+                    cache_key = _cache_key(module, parsed, input) if config.cache else None
+                    hit = store.cache_get(cache_key) if cache_key else None
+                    if hit is not None:
+                        emit = Emit(hit["port"], hit["value"])
+                        bus.emit(
+                            "step.cached",
+                            run_id,
+                            {"node": node.id},
+                            item_id=item_id,
+                            step_id=step_id,
+                        )
+                    else:
+                        emit = await module.run(input, create_step_context(parsed, **base))
+                        if cache_key and emit.port == "ok":
+                            store.cache_put(
+                                cache_key, {"port": emit.port, "value": emit.value}, now()
+                            )
                     out_port = next((p for p in module.ports.outputs if p.name == "out"), None)
                     if emit.port == "ok" and emit.value is not None and out_port is not None:
                         check = registry.caps.validate(out_port.cap, emit.value)

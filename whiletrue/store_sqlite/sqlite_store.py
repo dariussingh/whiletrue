@@ -255,6 +255,17 @@ class SqliteStore:
             for r in rows
         ]
 
+    def cache_get(self, key: str) -> Any | None:
+        row = self._db.execute("SELECT value FROM cache WHERE key = ?", (key,)).fetchone()
+        return None if row is None else json.loads(row["value"])
+
+    def cache_put(self, key: str, value: Any, created_at: int) -> None:
+        self._db.execute(
+            "INSERT INTO cache (key, value, created_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, created_at = excluded.created_at",
+            (key, json.dumps(value), created_at),
+        )
+
     def close(self) -> None:
         self._db.close()
 

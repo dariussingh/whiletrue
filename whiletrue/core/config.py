@@ -47,6 +47,8 @@ class PipelineConfig:
     uses: list[str]
     on_idle: Literal["exit", "watch"]
     on_fail: OnFail
+    #: Cache results of pure/deterministic modules by input hash.
+    cache: bool
     #: Passed through for providers (source, comments, ...).
     extra: dict[str, Any]
     root: PipelineNode
@@ -148,6 +150,7 @@ class _TopLevel(BaseModel):
     uses: list[str] = Field(default_factory=lambda: [])
     on_idle: Literal["exit", "watch"] = "exit"
     on_fail: Literal["park", "drop", "propagate"] = "park"
+    cache: bool = True
 
 
 def _build_node(
@@ -258,6 +261,7 @@ def parse_pipeline(text: str, file: str = "whiletrue.yaml") -> PipelineConfig:
         uses=top.uses,
         on_idle=top.on_idle,
         on_fail=top.on_fail,
+        cache=top.cache,
         extra=extra,
         root=root,
     )

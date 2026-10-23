@@ -51,6 +51,7 @@ class Harness:
                     config=StepCfg,
                     ports=Ports(inputs=[PortSpec("in", "Any")], outputs=[PortSpec("out", "Any")]),
                     effects="pure",
+                    cacheable=False,
                     run=run,
                 )
             )

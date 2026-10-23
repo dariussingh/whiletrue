@@ -17,6 +17,7 @@ class MemoryStore:
         self._items: list[ItemRecord] = []
         self._steps: list[StepRecord] = []
         self._events: list[WtEvent] = []
+        self._cache: dict[str, Any] = {}
 
     def create_run(
         self, *, id: str, pipeline_hash: str, started_at: int, lockfile: str | None = None
@@ -136,6 +137,12 @@ class MemoryStore:
             and (item_id is None or e.item_id == item_id)
             and (type is None or e.type == type)
         ]
+
+    def cache_get(self, key: str) -> Any | None:
+        return self._cache.get(key)
+
+    def cache_put(self, key: str, value: Any, created_at: int) -> None:
+        self._cache[key] = value
 
     def close(self) -> None:
         return None
