@@ -38,6 +38,8 @@ class PipelineNode:
     #: Outcome/data port -> sibling node id.
     wires: dict[str, str]
     loc: SourceLoc
+    #: Declared port caps (`in`/`out`), set on expanded composites so wiring can be checked.
+    ports: dict[str, str] | None = None
 
 
 @dataclass
@@ -52,6 +54,8 @@ class PipelineConfig:
     #: Passed through for providers (source, comments, ...).
     extra: dict[str, Any]
     root: PipelineNode
+    #: Composite files that were expanded into `root` (resolved paths), for hashing.
+    sources: list[str] = field(default_factory=lambda: [])
 
 
 Path_ = list[str | int]
@@ -225,7 +229,28 @@ def _check_wires(node: PipelineNode) -> None:
         _check_wires(child)
 
 
-def parse_pipeline(text: str, file: str = "whiletrue.yaml") -> PipelineConfig:
+def build_root(located: _Located, pipeline: Any, path: Path_) -> PipelineNode:
+    """Builds the node tree for a `pipeline:` value (a single step or an implicit sequence)."""
+    seen: dict[str, SourceLoc] = {}
+    if isinstance(pipeline, list):
+        seen["root"] = located.loc(path)
+        children = [
+            _build_node(located, child, [*path, i], f"root.{i}", seen)
+            for i, child in enumerate(pipeline)  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
+        ]
+        root = PipelineNode(
+            id="root", use="sequence", config={}, children=children, wires={}, loc=located.loc(path)
+        )
+    else:
+        root = _build_node(located, pipeline, path, "root", seen)
+    _check_wires(root)
+    return root
+
+
+def parse_pipeline(
+    text: str, file: str = "whiletrue.yaml", *, base_dir: Path | None = None
+) -> PipelineConfig:
+    """Parses a pipeline. With `base_dir`, `composite:` steps are loaded and expanded in place."""
     located = _Located(text, file)
     raw = located.value
     if not isinstance(raw, dict):
@@ -235,25 +260,12 @@ def parse_pipeline(text: str, file: str = "whiletrue.yaml") -> PipelineConfig:
         located.fail([], "Missing required key `pipeline`")
 
     extra: dict[str, Any] = {k: v for k, v in (top.model_extra or {}).items() if k != "pipeline"}
-    pipeline: Any = cast(dict[str, Any], raw)["pipeline"]
-    seen: dict[str, SourceLoc] = {}
-    if isinstance(pipeline, list):
-        seen["root"] = located.loc(["pipeline"])
-        children = [
-            _build_node(located, child, ["pipeline", i], f"root.{i}", seen)
-            for i, child in enumerate(pipeline)  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
-        ]
-        root = PipelineNode(
-            id="root",
-            use="sequence",
-            config={},
-            children=children,
-            wires={},
-            loc=located.loc(["pipeline"]),
-        )
-    else:
-        root = _build_node(located, pipeline, ["pipeline"], "root", seen)
-    _check_wires(root)
+    root = build_root(located, cast(dict[str, Any], raw)["pipeline"], ["pipeline"])
+    sources: list[str] = []
+    if base_dir is not None:
+        from whiletrue.core.composite import expand_composites  # noqa: PLC0415 (import cycle)
+
+        root = expand_composites(root, base_dir, sources)
 
     return PipelineConfig(
         file=file,
@@ -264,11 +276,76 @@ def parse_pipeline(text: str, file: str = "whiletrue.yaml") -> PipelineConfig:
         cache=top.cache,
         extra=extra,
         root=root,
+        sources=sources,
     )
 
 
 def load_pipeline(path: str | Path) -> PipelineConfig:
-    return parse_pipeline(Path(path).read_text(encoding="utf-8"), str(path))
+    return parse_pipeline(
+        Path(path).read_text(encoding="utf-8"), str(path), base_dir=Path(path).resolve().parent
+    )
+
+
+# ---- Composites (reusable sub-pipelines) -------------------------------------------------
+
+
+class _ParamSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    default: Any = None
+    required: bool = False
+
+
+class _CompositeTop(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    composite: str = Field(min_length=1)
+    params: dict[str, _ParamSpec | None] = Field(default_factory=lambda: {})
+    ports: dict[str, str] = Field(default_factory=lambda: {})
+    pipeline: Any
+
+
+@dataclass
+class ParamSpec:
+    default: Any = None
+    required: bool = False
+
+
+@dataclass
+class CompositeDefinition:
+    file: str
+    name: str
+    params: dict[str, ParamSpec]
+    #: Declared port caps, keyed `in` / `out`.
+    ports: dict[str, str]
+    root: PipelineNode
+
+
+def parse_composite(text: str, file: str) -> CompositeDefinition:
+    located = _Located(text, file)
+    raw: Any = located.value
+    if not isinstance(raw, dict):
+        located.fail([], "A composite file must be a mapping")
+    if "pipeline" not in raw:
+        located.fail([], "Missing required key `pipeline`")
+    top = located.validate(_CompositeTop, raw)
+    unknown = [k for k in top.ports if k not in ("in", "out")]
+    if unknown:
+        located.fail(["ports", unknown[0]], 'Composite ports must be named "in" or "out"')
+    return CompositeDefinition(
+        file=file,
+        name=top.composite,
+        params={
+            name: ParamSpec(spec.default, spec.required) if spec else ParamSpec()
+            for name, spec in top.params.items()
+        },
+        ports=top.ports,
+        root=build_root(located, top.pipeline, ["pipeline"]),
+    )
+
+
+def load_composite(path: str | Path) -> CompositeDefinition:
+    return parse_composite(Path(path).read_text(encoding="utf-8"), str(path))
 
 
 # ---- Agent modules (markdown with frontmatter) -------------------------------------------

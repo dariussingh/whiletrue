@@ -2,15 +2,20 @@
 
 from whiletrue.abort import AbortSignal
 from whiletrue.core.caps import CapError, CapRegistry, CapValidation, create_builtin_caps
+from whiletrue.core.composite import expand_composites
 from whiletrue.core.config import (
     AgentDefinition,
+    CompositeDefinition,
     ConfigError,
+    ParamSpec,
     PipelineConfig,
     PipelineNode,
     SourceLoc,
     load_agent_definition,
+    load_composite,
     load_pipeline,
     parse_agent_definition,
+    parse_composite,
     parse_pipeline,
 )
 from whiletrue.core.context import (
@@ -82,6 +87,7 @@ __all__ = [
     "CapRegistry",
     "CapValidation",
     "CompositeContext",
+    "CompositeDefinition",
     "ConfigError",
     "ConfigIssue",
     "Diagnostic",
@@ -98,6 +104,7 @@ __all__ = [
     "ModuleDefinitionError",
     "OnFail",
     "OutcomePolicy",
+    "ParamSpec",
     "PipelineConfig",
     "PipelineNode",
     "Plugin",
@@ -128,6 +135,7 @@ __all__ = [
     "create_step_context",
     "define_action",
     "define_strategy",
+    "expand_composites",
     "format_diagnostic",
     "has_errors",
     "hash_pipeline",
@@ -135,8 +143,10 @@ __all__ = [
     "is_outcome_port",
     "item_state_for",
     "load_agent_definition",
+    "load_composite",
     "load_pipeline",
     "parse_agent_definition",
+    "parse_composite",
     "parse_duration",
     "parse_expr",
     "parse_pipeline",

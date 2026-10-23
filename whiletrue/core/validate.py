@@ -50,6 +50,26 @@ def validate_pipeline(
         for issue in issues:
             push(node, issue.severity, issue.message)
 
+    def declared(node: PipelineNode, direction: Literal["in", "out"]) -> PortSpec | None:
+        cap = node.ports.get(direction) if node.ports else None
+        return PortSpec(direction, cap) if cap is not None and registry.caps.has(cap) else None
+
+    def in_port(node: PipelineNode) -> PortSpec | None:
+        resolved = registry.resolve(node.use)
+        if node.ports is not None:
+            return declared(node, "in")
+        if resolved is None or resolved.kind != "action":
+            return None
+        return _first_port(resolved.module.ports.inputs, "in")
+
+    def out_port(node: PipelineNode) -> PortSpec | None:
+        resolved = registry.resolve(node.use)
+        if node.ports is not None:
+            return declared(node, "out")
+        if resolved is None or resolved.kind != "action":
+            return None
+        return _first_port(resolved.module.ports.outputs, "out")
+
     def visit(node: PipelineNode) -> None:
         resolved = registry.resolve(node.use)
         if resolved is None:
@@ -86,12 +106,8 @@ def validate_pipeline(
                     )
             elif module.chain:
                 for prev, nxt in zip(node.children, node.children[1:], strict=False):
-                    a = registry.resolve(prev.use)
-                    b = registry.resolve(nxt.use)
-                    if a is None or b is None or a.kind != "action" or b.kind != "action":
-                        continue
-                    source = _first_port(a.module.ports.outputs, "out")
-                    target = _first_port(b.module.ports.inputs, "in")
+                    source = out_port(prev)
+                    target = in_port(nxt)
                     if (
                         source is not None
                         and target is not None
@@ -103,6 +119,10 @@ def validate_pipeline(
                             f'Cannot wire "{prev.id}".{source.name} ({source.cap}) '
                             f'into "{nxt.id}".{target.name} ({target.cap})',
                         )
+        if node.ports is not None:
+            for name, cap in node.ports.items():
+                if not registry.caps.has(cap):
+                    push(node, "error", f'Composite port "{name}" declares unknown cap "{cap}"')
         for child in node.children:
             visit(child)
 
