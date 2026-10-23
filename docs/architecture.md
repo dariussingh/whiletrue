@@ -444,7 +444,7 @@ One Python distribution, `whiletrue`, published to PyPI. Each row below is a sub
 - `agents/*.md` and `loops/*.yaml` hold the project's agent modules and composites.
 - `.whiletrue/` holds `state.db`, logs and session transcripts. It is git-ignored.
 
-## Implementation status (M0 and M1)
+## Implementation status (M0, M1 and M2)
 
 Built and tested; user-facing detail is in [reference.md](reference.md), extension API in [plugins.md](plugins.md).
 
@@ -466,6 +466,16 @@ Built and tested; user-facing detail is in [reference.md](reference.md), extensi
 - *Hashes.* Each run emits `run.hashes` with the pipeline hash and SHA-256s of the pipeline file, expanded composites and every file named by a step's `uses:` (prompts).
 - *Replay.* `core.replay.load_recording` reads a run's steps; `run_pipeline(replay=...)` serves each recorded `(item, node, attempt) → (port, output)` for every non-`pure` action (emitting `step.replayed`) and fails the step with "Replay diverged" if the recording lacks it. Strategies and `pure` modules always run, so control flow is re-evaluated against the recorded outputs. The CLI compares the final status and item states with the recording.
 
+**Interactive Claude Code (M2).** The design above is built as described, with these specifics (the spike that confirmed it is [spike-interactive.md](spike-interactive.md)):
+
+- *Process layout.* `whiletrue run` starts a loopback `EventEndpoint` (token-authenticated, one handler per live pane, keyed by step key). `InteractiveRunner` writes per-step files under `.whiletrue/sessions/`, opens a pane through a `PaneHost` (`TmuxPaneHost` in the CLI) and launches `claude … -- "$(cat prompt.md)"` with `--plugin-dir` (hooks), `--mcp-config` (the `whiletrue` MCP server) and `--append-system-prompt-file`. A prompt over 100 KB is passed as a pointer to its file because one argument is capped at 128 KiB. Tool names are fixed (`mcp__whiletrue__whiletrue_submit`) because the server is passed with `--mcp-config`, not bundled in the plugin.
+- *Thin clients.* The plugin's `hook.py` and `mcp_server.py` use only the standard library and hold no logic: they forward to the endpoint, which hands the call to the pane's `StepSession`. A hook can never break a session (any failure is silent).
+- *`StepSession`.* Finishes a step at the first `Stop` after a successful `whiletrue_submit`; turns a `Stop` with no result into a nudge (`{"decision":"block"}`), counted by whiletrue because `stop_hook_active` stays true after the first; parks with `needs_human` after N nudges or on `whiletrue_ask`; ends with an error if the session closes without a result.
+- *Limits.* `PreToolUse` denies tools once a limit is hit; the runner also parks the step if the agent keeps going (`limit_grace`) or the wall-time deadline passes. Turns are assistant messages in the transcript (deduplicated by message id); the budget is tokens × list price per model family, and an unknown model is priced as the dearest family. It is an estimate (OQ-2 stays open until measured against billing).
+- *Steering.* Any `UserPromptSubmit` after the first is a steer: limits lift, nudging stops, and spend after that moment is reported as steered.
+- *Sessions.* The item scope holds `sessions: {name: claude session id}`. `session: item|<name>` resumes (`--resume`), `fork: true` adds `--fork-session` without updating the stored id, and `session.end` / `context.reset` remove entries.
+- *Trust prompt.* Claude Code's "trust this folder" dialog is left to the human in the pane; whiletrue does not auto-trust directories.
+
 ## Milestones to v0.1 and open questions
 
 v0.1 ships when the reference pipeline takes a real milestone from open issues to merged PRs, with four items running in parallel. Each milestone ends with something runnable, and from M1 onward whiletrue is built with its own workflow.
@@ -476,7 +486,7 @@ M2 and M3 both build on M1 and don't depend on each other, so they can run in pa
 
 ### Open questions
 
-- Spike early in M2: confirm that a `--plugin-dir` plugin bundling hooks and an MCP server behaves as designed in interactive sessions, including the `Stop` nudge loop.
+- ~~Spike: does a `--plugin-dir` plugin with hooks and MCP behave as designed in interactive sessions?~~ Yes; see [spike-interactive.md](spike-interactive.md).
 - How accurate can a budget estimate from transcript usage be, and is a soft cap acceptable for interactive steps?
 - After a whiletrue crash, should we re-attach to the still-running tmux pane, or restart it with `claude --resume`?
 - For `session: item` across retries, the resumed session must run in the same worktree. Confirm how resume behaves when the working directory has changed.

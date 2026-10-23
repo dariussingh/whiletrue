@@ -1,4 +1,4 @@
-# Reference (M1)
+# Reference (M1 and M2)
 
 What you can write in `whiletrue.yaml` today. The design rationale is in [architecture.md](architecture.md).
 
@@ -26,8 +26,40 @@ A step has exactly one module key (`shell: {...}`), plus optional `id:`, `wires:
 | `gate.tests` | deterministic | Like `gate.shell`; `run` defaults to `pytest` |
 | `gate.diff_size` | deterministic | Fail when the working tree differs from `base` (default `HEAD`) by more than `max_lines` / `max_files` |
 | `set` | pure | Emit a constant `value` (templates rendered) |
+| `session.end` | deterministic | Close the shared agent session `name` (default `item`); the input passes through |
+| `context.reset` | deterministic | Close every shared agent session of the item; the input passes through |
 
 Gates must be deterministic; the validator rejects anything else named `gate.*`.
+
+## Agent files
+
+`agents/*.md`: a YAML header, then the prompt (templates: `{{input}}`, `{{item.*}}`, `{{iter.*}}`, `{{run.id}}`, and `vars` from the step).
+
+| Header field | Meaning |
+| --- | --- |
+| `agent` | Name (required) |
+| `runner` | `claude-code-headless` (default) or `claude-code` (interactive pane) |
+| `model`, `tools`, `permission_mode` | Passed to Claude Code (`--model`, `--allowedTools`, `--permission-mode`) |
+| `limits` | `budget_usd`, `turns`, `wall` (e.g. `20m`); required |
+| `outputs` | `{ name: Cap }`: structured output checked against the cap |
+| `session` | `fresh` (default), `item`, or a name shared within the item |
+| `fork` | With a shared `session`: branch from it without changing it (needs a runner that can fork) |
+| `on_done` | Interactive only: `close` (default) or `keep` the pane after the step |
+| `add_dirs` | Extra directories Claude may read (`--add-dir`) |
+| `append_system_prompt_file` | A file appended to the system prompt |
+| `mcp_config` | Extra MCP config files (`--mcp-config`) |
+| `bare` | `--bare`. On `claude-code` this turns off whiletrue's hooks (no nudges, limits or steering), so `validate` warns |
+
+`validate` rejects an agent whose runner can't do what it asks (structured output, budget, resume, fork).
+
+### Runners
+
+| Runner | Capabilities | Notes |
+| --- | --- | --- |
+| `claude-code-headless` | structured output, resume, budget | `claude -p`; hard `--max-turns` / `--max-budget-usd` |
+| `claude-code` | interactive, structured output, resume, fork, budget (estimate) | Live tmux pane; finishes via `whiletrue_submit`; see [getting-started.md](getting-started.md#interactive-agents-a-live-tmux-pane) |
+
+When an agent parks (`needs_human`), the step's output is `{reason, detail, text}`.
 
 ## Control flow
 

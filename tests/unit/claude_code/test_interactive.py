@@ -17,91 +17,14 @@ from whiletrue.claude_code.interactive import (
 from whiletrue.claude_code.panes import ProcessPaneHost
 from whiletrue.core import AgentLimits, AgentRequest, RunContext, create_builtin_caps
 
-FAKE = r'''#!__PY__
-"""A stand-in for interactive `claude`: does what the real plugin would do, per FAKE_MODE."""
-import importlib.util, json, os, sys, time
-
-args = sys.argv[1:]
-out = os.environ["FAKE_OUT"]
-open(out + ".args", "w").write(json.dumps(args))
-open(out + ".env", "w").write(json.dumps({k: v for k, v in os.environ.items() if k.startswith("WT_")}))
-plugin = args[args.index("--plugin-dir") + 1]
-spec = importlib.util.spec_from_file_location("hook", plugin + "/hook.py")
-hook = importlib.util.module_from_spec(spec); spec.loader.exec_module(hook)
-env = os.environ
-mode = env.get("FAKE_MODE", "submit")
-
-
-def post(path, body):
-    return hook.post_json(env["WT_ENDPOINT"], path, body, env["WT_TOKEN"], env["WT_SESSION"])
-
-
-def fire(event, payload=None):
-    return post("/hook", {"event": event, "payload": payload or {}})
-
-
-def tool(name, arguments):
-    return post("/tools/call", {"name": name, "arguments": arguments})
-
-
-def exit_on_slash_exit():
-    for line in sys.stdin:
-        if line.strip() == "/exit":
-            break
-    fire("SessionEnd", {})
-    sys.exit(0)
-
-
-transcript = env.get("FAKE_TRANSCRIPT")
-fire("SessionStart", {"session_id": "claude-sid", "transcript_path": transcript})
-fire("UserPromptSubmit", {"prompt": args[-1]})
-open(out + ".prompt", "w").write(args[-1])
-
-if mode == "die":
-    sys.exit(3)
-if mode == "hang":
-    exit_on_slash_exit()
-if mode == "bad_then_ok":
-    reply = tool("whiletrue_submit", {"result": {"pass": "nope"}})
-    open(out + ".first", "w").write(json.dumps(reply))
-    tool("whiletrue_submit", {"result": {"pass": True}})
-elif mode == "ask":
-    tool("whiletrue_ask", {"question": "which database?"})
-elif mode == "nudge":
-    reply = fire("Stop", {"last_assistant_message": "thinking"})
-    open(out + ".nudge", "w").write(json.dumps(reply))
-    tool("whiletrue_submit", {"result": "late"})
-elif mode == "attention":
-    fire("Notification", {"message": "needs permission"})
-    time.sleep(0.2)
-    fire("PostToolUse", {"tool_name": "Bash"})
-    tool("whiletrue_submit", {"result": "ok"})
-elif mode == "overbudget":
-    reply = fire("PreToolUse", {"tool_name": "Bash"})
-    open(out + ".pretool", "w").write(json.dumps(reply))
-    exit_on_slash_exit()
-elif mode == "silent":
-    pass
-elif mode == "steer":
-    fire("UserPromptSubmit", {"prompt": "do it differently"})
-    tool("whiletrue_submit", {"result": "steered"})
-elif mode == "tools":
-    reply = fire("PreToolUse", {"tool_name": "Bash"})
-    open(out + ".pretool", "w").write(json.dumps(reply))
-    fire("PostToolUse", {"tool_name": "Bash"})
-    tool("whiletrue_submit", {"result": "tooled"})
-else:
-    tool("whiletrue_submit", {"result": "42"})
-fire("Stop", {"last_assistant_message": "all done"})
-if mode == "stubborn":
-    time.sleep(60)
-exit_on_slash_exit()
-'''.replace("__PY__", sys.executable)
+FAKE_SOURCE = (
+    Path(__file__).resolve().parents[2] / "fixtures" / "fake_interactive_claude.py"
+).read_text()
 
 
 def fake_claude(directory: Path) -> str:
     path = directory / "fake-claude"
-    path.write_text(FAKE)
+    path.write_text(FAKE_SOURCE.replace("#!/usr/bin/env python3", f"#!{sys.executable}", 1))
     path.chmod(path.stat().st_mode | stat.S_IEXEC)
     return str(path)
 
@@ -477,3 +400,14 @@ async def test_blowing_the_budget_denies_tools_and_parks_a_session_that_will_not
     denial = recorded(tmp_path, "pretool")["hookSpecificOutput"]
     assert denial["permissionDecision"] == "deny"
     assert result.cost_usd is not None and result.cost_usd > 0.5
+
+
+def test_panes_inherit_the_variables_claude_needs(monkeypatch: pytest.MonkeyPatch) -> None:
+    from whiletrue.claude_code.interactive import pane_environment
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    monkeypatch.setenv("PATH", "/bin")
+    monkeypatch.setenv("UNRELATED_SECRET", "s")
+    env = pane_environment()
+    assert env["ANTHROPIC_API_KEY"] == "k" and env["PATH"] == "/bin"
+    assert "UNRELATED_SECRET" not in env

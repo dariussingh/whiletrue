@@ -34,12 +34,15 @@ class PaneHost(Protocol):
 class TmuxPaneHost:
     """Opens each agent session as a pane in the project's tmux session."""
 
-    def __init__(self, tmux: TmuxController, control_command: str | None = None) -> None:
+    def __init__(
+        self, tmux: TmuxController, control_command: str | None = None, cwd: str | None = None
+    ) -> None:
         self._tmux = tmux
         self._control_command = control_command
+        self._cwd = cwd
 
     async def open(self, *, title: str, argv: list[str], cwd: str, env: dict[str, str]) -> Pane:
-        await self._tmux.ensure_session(self._control_command)
+        await self._tmux.ensure_session(self._control_command, self._cwd)
         pane = await self._tmux.open_pane(title=title, argv=argv, cwd=cwd, env=env)
         return _TmuxPane(self._tmux, pane)
 

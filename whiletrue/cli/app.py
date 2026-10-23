@@ -11,7 +11,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from whiletrue.abort import AbortSignal
-from whiletrue.cli.registry import create_default_registry, load_plugins
+from whiletrue.claude_code import PaneHost
+from whiletrue.cli.registry import RegistryOptions, create_default_registry, load_plugins
 from whiletrue.cli.templates import RALPH_AGENT, RALPH_PIPELINE
 from whiletrue.core import (
     LOCK_FILE,
@@ -47,6 +48,8 @@ class Io:
     tmux: TmuxController | None = None
     #: Replaces this process with the given argv (tmux attach); defaults to `os.execvp`.
     attach: Callable[[list[str]], object] | None = None
+    #: Where interactive agents run; defaults to tmux panes (tests inject a plain-process host).
+    pane_host: PaneHost | None = None
 
 
 USAGE = """whiletrue — run configurable loops around coding agents
@@ -98,7 +101,9 @@ def _load(io: Io, file: str, *, check_pins: bool = True) -> _Loaded | int:
     except OSError as error:
         io.err(f"Cannot load {file}: {error}\n")
         return EXIT.failed
-    registry = create_default_registry()
+    registry = create_default_registry(
+        RegistryOptions(project_dir=str(path.parent), pane_host=io.pane_host)
+    )
     try:
         load_plugins(registry, config.uses, str(path.parent))
     except Exception as error:

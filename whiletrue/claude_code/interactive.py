@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 import re
 import shlex
 import sys
@@ -88,6 +89,17 @@ def build_interactive_args(
     if req.bare:
         args += ["--bare"]
     return args
+
+
+#: Variables a pane needs even when the tmux server was started from a different environment.
+_PASSTHROUGH = re.compile(
+    r"^(PATH|HOME|USER|SHELL|LANG|LC_.*|TERM|VIRTUAL_ENV|LD_LIBRARY_PATH|NIX_.*"
+    r"|ANTHROPIC_.*|CLAUDE_.*|WHILETRUE_.*)$"
+)
+
+
+def pane_environment() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items() if _PASSTHROUGH.match(k)}
 
 
 def _safe(name: str) -> str:
@@ -187,7 +199,7 @@ class InteractiveRunner:
         session_holder.append(session)
         unregister = endpoint.register(key, session)
         try:
-            env = {**endpoint.env_for(key), "WT_PYTHON": opts.python}
+            env = {**pane_environment(), **endpoint.env_for(key), "WT_PYTHON": opts.python}
             try:
                 pane = await self._host.open(title=label, argv=argv, cwd=request.cwd, env=env)
             except Exception as error:

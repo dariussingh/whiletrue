@@ -85,11 +85,15 @@ class TmuxController:
     async def has_session(self) -> bool:
         return (await self._exec(["has-session", "-t", self.session])).code == 0
 
-    async def ensure_session(self, control_command: str | None = None) -> None:
+    async def ensure_session(
+        self, control_command: str | None = None, cwd: str | None = None
+    ) -> None:
         """Creates the session (detached) with its control window unless it already exists."""
         if await self.has_session():
             return
         argv = ["new-session", "-d", "-s", self.session, "-n", "control"]
+        if cwd:
+            argv += ["-c", cwd]
         await self._ok([*argv, control_command] if control_command else argv)
         for option, value in (
             ("pane-border-status", "top"),

@@ -31,13 +31,18 @@ whiletrue/
     runtime.py context.py events.py                         scheduler, scopes, event bus
     store.py memory_store.py lock.py replay.py              state protocol, lock file, replay
   control/        strategies: sequence, loop, map, parallel, switch, retry, try
-  basics/         modules: shell, exec, agent, set, gate.shell, gate.tests, gate.diff_size
-  claude_code/    headless Claude Code runner
+  basics/         modules: shell, exec, agent, set, session.end, context.reset, gate.*
+  claude_code/    Claude Code runners: headless.py (claude -p) and interactive.py (live pane)
+    endpoint.py   loopback HTTP endpoint the plugin posts to        session.py  per-pane outcome logic
+    panes.py      PaneHost: tmux or plain subprocess                transcript.py  usage/cost estimate
+    plugin/       the bundled Claude Code plugin: hooks.json, hook.py, mcp_server.py (stdlib only)
+  tmux/           TmuxController: session, windows, tiled pane grid, attach
   store_sqlite/   SQLite StateStore and migrations
   recipes/        ralph.yaml, review-pass.yaml (loaded by `composite: recipe:<name>`)
   cli/            argument parsing, commands, default registry, init templates
 tests/unit/<package>/    one test module per source module (never beside the source)
-tests/integration/       CLI and recipe tests against a fake `claude`
+tests/integration/       CLI, recipe and interactive-run tests against a fake `claude`
+tests/fixtures/          stand-in `claude` scripts (excluded from lint and typecheck)
 docs/                    design, plan, todo, reference, guides
 ```
 

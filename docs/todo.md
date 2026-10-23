@@ -65,7 +65,7 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 43. [x] Limits without headless flags: turns & wall time from hooks; budget estimate from transcript with `PreToolUse` deny → park `budget_exceeded`. (OQ-2)
 44. [x] Steering lifts limits; cost split agent vs. steered; gates still run.
 45. [x] Validator rejects steps requesting features their runner lacks.
-46. [ ] **M2 exit:** one issue completed in a live tmux pane with typed result submitted.
+46. [x] **M2 exit:** one issue completed in a live tmux pane with typed result submitted.
 
 ## Phase M3 · Parallel items & DAG _(parallel with M2)_
 

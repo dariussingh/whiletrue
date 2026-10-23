@@ -6,7 +6,7 @@ From M1 onward, whiletrue is built using its own workflow (dogfooding). Each mil
 
 ## Status
 
-M0 and M1 are built and reviewed; M2 is in progress and M3 has not started (see [todo.md](todo.md)).
+M0, M1 and M2 are built (M0 and M1 reviewed); M3 has not started (see [todo.md](todo.md)).
 
 ## Milestone graph
 

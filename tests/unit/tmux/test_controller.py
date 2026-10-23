@@ -57,9 +57,10 @@ async def test_ensure_session_creates_it_once_with_a_control_window() -> None:
     fake = FakeTmux()
     fake.reply("has-session", ExecResult(1, "", "no session"))
     tmux = controller(fake)
-    await tmux.ensure_session(control_command="watch whiletrue status")
+    await tmux.ensure_session(control_command="watch whiletrue status", cwd="/proj")
     new = next(c for c in fake.calls if c[0] == "new-session")
     assert new[:6] == ["new-session", "-d", "-s", "wt-demo", "-n", "control"]
+    assert new[new.index("-c") + 1] == "/proj"
     assert new[-1] == "watch whiletrue status"
     # Pane titles are shown on a border so a pane reads "#142 implement".
     assert any(c[0] == "set-option" and "pane-border-status" in c for c in fake.calls)

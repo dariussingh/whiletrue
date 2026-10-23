@@ -3,7 +3,7 @@
 | #   | Question                                                                                                                                                                        | Decide by   |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | 1   | ~~Do `--plugin-dir` hooks and an MCP server behave as designed in interactive sessions?~~ **Resolved (2026-10-23): yes**, including the `Stop` nudge loop. See [spike-interactive.md](spike-interactive.md). | Done        |
-| 2   | How accurate is a budget estimate from transcript usage; is a soft cap acceptable for interactive steps?                                                                        | M2          |
+| 2   | How accurate is a budget estimate from transcript usage; is a soft cap acceptable for interactive steps? **Estimate built (M2)** from transcript usage and per-family list prices; a live run priced a trivial step at $0.11. Accuracy against real billing is still unmeasured. | Measure |
 | 3   | After a whiletrue crash: re-attach to the still-running tmux pane, or restart with `claude --resume`?                                                                           | M3          |
 | 4   | For `session: item` across retries, how does resume behave when the working directory has changed?                                                                              | M3          |
 | 5   | Convention for spec links in issue bodies (e.g. `spec: specs/m3/api.md#L40-L88`) so the knowledge provider can parse them                                                       | M3/M4       |

@@ -55,6 +55,32 @@ Make the failing tests pass. Previous failure (empty on the first try):
 
 An agent may declare `outputs: { out: Verdict }` to return structured output that is checked against a cap.
 
+### Interactive agents (a live tmux pane)
+
+`runner: claude-code-headless` runs `claude -p` unattended. `runner: claude-code` runs the real interactive Claude Code in a tmux pane that you can watch and type into:
+
+```markdown
+---
+agent: implement
+runner: claude-code
+permission_mode: acceptEdits
+session: item          # share one conversation across this item's steps
+limits: { budget_usd: 3, turns: 40, wall: 30m }
+outputs: { result: Verdict }
+---
+Implement the next task, then submit your result.
+```
+
+- **Run it, then look.** `whiletrue run` creates a tmux session named `wt-<project dir>` (window 0 is a live status view, each agent gets its own pane). In another terminal run `whiletrue attach`. Detaching (`Ctrl-b d`) never stops the run.
+- **How a step finishes.** The agent calls the `whiletrue_submit` tool with its result. It is checked against the step's output cap; an invalid result goes back to the agent with the errors so it can fix it. If the agent stops without submitting, whiletrue reminds it (up to 3 times) and then parks the step as `needs_human`. `whiletrue_ask(question)` parks the step on purpose, and `whiletrue_learn(note)` records a lesson in `.whiletrue/learnings.jsonl`.
+- **First run in a directory.** Claude Code asks "Do you trust this folder?" in the pane. whiletrue never answers that for you; attach and answer it once (or run `claude` in the project once beforehand).
+- **Steering.** Type into any agent pane. whiletrue records it as a *steer* and lifts that step's budget, turn and wall-time limits, because you are driving now. Cost is still tracked, split into agent-only and steered spend (an `agent.event` of kind `cost`). The step's gates still run before the item moves on, and a steered session is never nudged.
+- **Limits.** Turns and wall time are counted from hooks; the budget is an *estimate* from the session transcript's token usage and list prices, so it is softer than headless `--max-budget-usd`. When a limit is hit, further tool calls are denied and the step parks as `needs_human` with a reason (`budget_exceeded`, `turns_exceeded`, `wall_exceeded`).
+- **Permission prompts** don't hang the run: they show in the pane (its title gets a `!` prefix) for you to answer.
+- `on_done: keep` leaves the pane on screen after the step; the default `close` closes it.
+
+Sessions: `session: fresh` (default) starts a new conversation; `session: item` or `session: <name>` continues a shared one for the rest of the item; `fork: true` branches from it without changing it. End one explicitly with `- session.end: {name: item}`, or drop all with `- context.reset: {}`. Headless runs can resume but not fork.
+
 **Recipes** are ready-made loops: `composite: { uses: "recipe:ralph", params: { agent: ./agents/fixer.md } }`. See [reference.md](reference.md#composites-and-recipes).
 
 ## Commands
@@ -68,6 +94,7 @@ An agent may declare `outputs: { out: Verdict }` to return structured output tha
 | `whiletrue status [run]` | Show a run's steps, outcomes and cost |
 | `whiletrue replay [run]` | Re-run a recorded run's logic without calling agents or tools |
 | `whiletrue lock` | Pin the plugin versions in use to `whiletrue.lock` |
+| `whiletrue attach` | Attach to the project's tmux session (live agent panes) |
 
 Use `-f/--file <path>` to point at a different pipeline file.
 
@@ -87,6 +114,8 @@ Use `-f/--file <path>` to point at a different pipeline file.
 | --- | --- |
 | `.whiletrue/state.db` | SQLite record of runs, steps, outputs, events and the result cache (git-ignore it) |
 | `whiletrue.lock` | Plugin version pins (commit it) |
+| `.whiletrue/sessions/` | Per-step files for interactive agents: prompt, system note, MCP config |
+| `.whiletrue/learnings.jsonl` | Notes agents recorded with `whiletrue_learn` |
 
 ## Safety defaults
 

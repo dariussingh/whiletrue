@@ -127,6 +127,10 @@ Use `whiletrue.control.run_chain` to run children in order with `out → in` wir
 
 A runner executes an agent prompt: `id`, `capabilities` (`interactive`, `structured_output`, `resume`, `fork`, `budget`) and `async run(request, ctx) -> AgentResult`. Register it with `api.register_runner(...)`; agent files select it with `runner: <id>`. The validator rejects an agent that needs a capability its runner lacks. `whiletrue/claude_code/headless.py` is the reference implementation.
 
+`AgentRequest` carries the prompt, `cwd`, model, tools and permission mode, `output_schema` / `validate_output` (for structured output), `limits`, session fields (`session_id` for a new one, `resume` and `fork` for a shared one), `on_done`, `step_key`, `label` and `item`. Return an `AgentResult`: `ok`, `text`, `output`, `session_id`, `cost_usd`, `turns`, `error`, and optionally `park` (`needs_human`, `budget_exceeded`, ...) to park the step for a person instead of failing it, plus `steered` / `steered_cost_usd`. Use `ctx.on_event` to stream events to the log.
+
+The interactive runner (`whiletrue/claude_code/interactive.py`) shows a runner with a live UI: it launches `claude` in a pane through a `PaneHost` (tmux in the CLI, plain subprocesses in tests), receives the bundled plugin's hook posts and MCP tool calls through the loopback `EventEndpoint`, and decides outcomes in `StepSession`. To test one, point it at a stand-in `claude` that posts the same hooks (see `tests/fixtures/fake_interactive_claude.py`).
+
 ## Caps
 
 `api.register_cap("Ticket", TicketModel)` registers a PascalCase name backed by anything pydantic can validate. Caps with the same name are compatible; `Any` matches everything.

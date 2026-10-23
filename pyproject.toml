@@ -59,6 +59,7 @@ exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "\\.\\.\\.$"]
 line-length = 100
 target-version = "py312"
 src = [".", "tests"]
+extend-exclude = ["tests/fixtures"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "ASYNC", "RUF", "PT", "C4", "PL", "TID"]
@@ -69,6 +70,7 @@ ignore = ["PLR0913", "PLR2004", "PLR0911", "PLR0912", "PLR0915", "RUF012"]
 
 [tool.pyright]
 include = ["whiletrue", "tests"]
+exclude = ["tests/fixtures"]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
 venvPath = ".devenv/state"

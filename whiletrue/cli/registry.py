@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import os
+import shlex
 import sys
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, entry_points
@@ -10,9 +11,16 @@ from importlib.metadata import version as dist_version
 from typing import Any
 
 from whiletrue.basics import basics_plugin
-from whiletrue.claude_code import HeadlessOptions, claude_code_plugin
+from whiletrue.claude_code import (
+    HeadlessOptions,
+    InteractiveOptions,
+    PaneHost,
+    TmuxPaneHost,
+    claude_code_plugin,
+)
 from whiletrue.control import control_plugin
 from whiletrue.core import Plugin, Registry
+from whiletrue.tmux import TmuxController, session_name
 
 #: Third-party plugins advertise themselves under this entry-point group.
 PLUGIN_ENTRY_POINT_GROUP = "whiletrue.plugins"
@@ -25,10 +33,20 @@ def whiletrue_version() -> str:
         return "0.0.0"
 
 
+#: Window 0 of the tmux session: the run's status, refreshed every couple of seconds.
+_CONTROL_PANEL = (
+    f"while true; do clear; {shlex.quote(sys.executable)} -m whiletrue status; sleep 2; done"
+)
+
+
 @dataclass
 class RegistryOptions:
     #: Path to the claude binary; defaults to WHILETRUE_CLAUDE_BIN or `claude`.
     claude_command: str | None = None
+    #: The project directory: names the tmux session and is the control window's cwd.
+    project_dir: str | None = None
+    #: Where interactive agents run; defaults to panes in the project's tmux session.
+    pane_host: PaneHost | None = None
 
 
 def create_default_registry(options: RegistryOptions | None = None) -> Registry:
@@ -38,11 +56,16 @@ def create_default_registry(options: RegistryOptions | None = None) -> Registry:
     version = whiletrue_version()
     registry.use(control_plugin, version)
     registry.use(basics_plugin, version)
+    command = opts.claude_command or os.environ.get("WHILETRUE_CLAUDE_BIN") or "claude"
+    project = opts.project_dir or os.getcwd()
+    host = opts.pane_host or TmuxPaneHost(
+        TmuxController(session_name(project), binary=os.environ.get("WHILETRUE_TMUX_BIN", "tmux")),
+        control_command=_CONTROL_PANEL,
+        cwd=project,
+    )
     registry.use(
         claude_code_plugin(
-            HeadlessOptions(
-                command=opts.claude_command or os.environ.get("WHILETRUE_CLAUDE_BIN") or "claude"
-            )
+            HeadlessOptions(command=command), InteractiveOptions(command=command, host=host)
         ),
         version,
     )
