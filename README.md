@@ -4,9 +4,11 @@ A local, single-machine Python orchestrator that runs configurable pipelines of 
 
 > LangGraph builds the agent; whiletrue runs the loop around agents you already have.
 
-**Status:** M0 (core engine) and M1 (control flow, composites, recipes, replay) built in Python, pending review. `whiletrue init | validate | plan | run | status | lock | replay` work with the headless Claude Code runner. See [`docs/`](docs/README.md): [reference](docs/reference.md), [architecture](docs/architecture.md), [plan](docs/plan.md), [todo](docs/todo.md).
+**Status:** M0 (core engine) and M1 (control flow, composites, recipes, replay) built in Python, pending review. `whiletrue init | validate | plan | run | status | lock | replay` work with the headless Claude Code runner. See [`docs/`](docs/README.md): [getting started](docs/getting-started.md), [reference](docs/reference.md), [architecture](docs/architecture.md), [plan](docs/plan.md), [todo](docs/todo.md).
 
 ## Development
+
+See [developing.md](docs/developing.md) and, to extend whiletrue, [plugins.md](docs/plugins.md).
 
 Requires [devenv](https://devenv.sh) (or Python 3.12 + [uv](https://docs.astral.sh/uv/)).
 

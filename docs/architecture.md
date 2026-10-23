@@ -444,6 +444,28 @@ One Python distribution, `whiletrue`, published to PyPI. Each row below is a sub
 - `agents/*.md` and `loops/*.yaml` hold the project's agent modules and composites.
 - `.whiletrue/` holds `state.db`, logs and session transcripts. It is git-ignored.
 
+## Implementation status (M0 and M1)
+
+Built and tested; user-facing detail is in [reference.md](reference.md), extension API in [plugins.md](plugins.md).
+
+**Engine (M0).** Modules and strategies with typed ports and caps (pydantic), the outcome ports (`ok`, `fail`, `needs_human`, `skip`, `rejected`) with the `on_fail` policy, a plugin registry (entry point group `whiletrue.plugins`), strict `{{dotted.path}}` templates, a static validator, a scoped runtime that persists every step and event to a `StateStore` (SQLite or in-memory), and the headless Claude Code runner. Items run sequentially; parallel item scheduling is M3.
+
+**Control flow (M1).** `sequence`, `loop`, `map`, `parallel`, `switch`, `retry` and `try` are strategies over `ctx.run`. Key decisions:
+
+- *Expressions.* CEL via the Rust-backed `common-expression-language`, wrapped in `core.expr.Expr` (`parse_expr`, `check`, `eval`, `eval_bool`) so the engine can be swapped. `check` is static (unknown variables, function allow-list); full cap type-checking is not possible with the available libraries. The loop scope is `iter` because `loop` is a CEL reserved word. Rationale and the spike are in [open-questions.md](open-questions.md).
+- *Wires.* `wires: {port: sibling}` is resolved in the chain runner (`control.chain.run_chain`): the emitted value is routed to the sibling and the chain continues from there; at most 1000 routes per chain.
+- *Retry and park.* `retry` re-runs on `fail` only; exhaustion emits `needs_human`, which the runtime turns into a parked item. `try` converts `fail` to `skip`/`ok`.
+- *Hooks for static checks.* `Strategy.validate_node(config, node, ctx)` sees the children (used by `switch` to check case targets); `Strategy.validate(config, ctx)` sees only config.
+- *Gates.* `gate.*` must be `deterministic`; `gate.tests` and `gate.diff_size` ship alongside `gate.shell`.
+
+**Composites.** A composite file declares `params` (with `default`/`required`), optional `ports` (`in`/`out` caps) and a `pipeline`. `core.composite.expand_composites` runs at load time and replaces each `composite:` step with a `sequence` node: `{{params.x}}` is substituted (a lone token keeps its type), step ids are prefixed with the composite step's id (including the sibling ids named by `switch`), nested composites are expanded recursively (cycle and depth checks), and the declared ports are attached to the node so the validator can type-check wiring around it. `recipe:<name>` resolves to YAML shipped in `whiletrue/recipes/`.
+
+**Reproducibility.**
+- *Cache.* Before running an action whose `effects` are `pure`/`deterministic` and which is `cacheable`, the runtime looks up `sha256(module id, config, input)` in `StateStore.cache_get`; only `ok` results are stored (`cache_put`). Emits `step.cached`. Disabled by `cache: false` and during replay.
+- *Lock.* `whiletrue.lock` (JSON) maps plugin name to version; `Registry.use(plugin, version)` records versions; the CLI refuses to run when they drift. The run row stores a hash of the lock file.
+- *Hashes.* Each run emits `run.hashes` with the pipeline hash and SHA-256s of the pipeline file, expanded composites and every file named by a step's `uses:` (prompts).
+- *Replay.* `core.replay.load_recording` reads a run's steps; `run_pipeline(replay=...)` serves each recorded `(item, node, attempt) → (port, output)` for every non-`pure` action (emitting `step.replayed`) and fails the step with "Replay diverged" if the recording lacks it. Strategies and `pure` modules always run, so control flow is re-evaluated against the recorded outputs. The CLI compares the final status and item states with the recording.
+
 ## Milestones to v0.1 and open questions
 
 v0.1 ships when the reference pipeline takes a real milestone from open issues to merged PRs, with four items running in parallel. Each milestone ends with something runnable, and from M1 onward whiletrue is built with its own workflow.

@@ -4,6 +4,10 @@ Goal: **v0.1** ships when the reference pipeline (the issue loop, see [architect
 
 From M1 onward, whiletrue is built using its own workflow (dogfooding). Each milestone ends with something runnable.
 
+## Status
+
+M0 and M1 are built and pending the owner's review (see [todo.md](todo.md)); M2 and M3 have not started.
+
 ## Milestone graph
 
 ```
