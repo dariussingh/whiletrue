@@ -9,6 +9,7 @@ from typing import Any, Literal
 EventType = Literal[
     "run.started",
     "run.finished",
+    "run.hashes",
     "item.state",
     "step.started",
     "step.finished",

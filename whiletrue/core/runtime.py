@@ -15,6 +15,7 @@ from whiletrue.abort import AbortSignal
 from whiletrue.core.config import PipelineConfig, PipelineNode
 from whiletrue.core.context import CompositeContext, Logger, Scope, create_step_context
 from whiletrue.core.events import EventBus
+from whiletrue.core.lock import collect_file_hashes
 from whiletrue.core.module import Emit, PortValues
 from whiletrue.core.outcomes import ItemState, OutcomePolicy, is_outcome_port, item_state_for
 from whiletrue.core.registry import Registry
@@ -92,6 +93,8 @@ async def run_pipeline(
     run_id: str | None = None,
     log: Logger | None = None,
     now: Callable[[], int] = _wall_clock_ms,
+    #: Recorded on the run (e.g. a hash of whiletrue.lock).
+    lockfile: str | None = None,
 ) -> RunResult:
     """Sequential scheduler: runs each item through the module tree and persists every step.
 
@@ -105,9 +108,15 @@ async def run_pipeline(
     items = items if items is not None else [RunItem("main")]
     policy = OutcomePolicy(on_fail=config.on_fail)
 
-    store.create_run(id=run_id, pipeline_hash=hash_pipeline(config), started_at=now())
+    pipeline_hash = hash_pipeline(config)
+    store.create_run(id=run_id, pipeline_hash=pipeline_hash, started_at=now(), lockfile=lockfile)
     unsubscribe = bus.subscribe(store.append_event)
     bus.emit("run.started", run_id, {"pipeline": config.name, "items": len(items)})
+    bus.emit(
+        "run.hashes",
+        run_id,
+        {"pipeline": pipeline_hash, "files": collect_file_hashes(config, cwd)},
+    )
 
     attempts: dict[str, int] = {}
     outcomes: list[ItemOutcome] = []

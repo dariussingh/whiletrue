@@ -28,6 +28,15 @@ from whiletrue.core.context import (
 from whiletrue.core.duration import parse_duration
 from whiletrue.core.events import EventBus, WtEvent
 from whiletrue.core.expr import Expr, ExprError, parse_expr
+from whiletrue.core.lock import (
+    LOCK_FILE,
+    LockError,
+    check_lock,
+    collect_file_hashes,
+    read_lock,
+    sha256_file,
+    write_lock,
+)
 from whiletrue.core.memory_store import MemoryStore
 from whiletrue.core.module import (
     EFFECTS,
@@ -76,6 +85,7 @@ from whiletrue.core.validate import Diagnostic, format_diagnostic, has_errors, v
 
 __all__ = [
     "EFFECTS",
+    "LOCK_FILE",
     "OUTCOME_PORTS",
     "AbortSignal",
     "ActionModule",
@@ -100,6 +110,7 @@ __all__ = [
     "ItemOutcome",
     "ItemRecord",
     "ItemState",
+    "LockError",
     "MemoryStore",
     "ModuleDefinitionError",
     "OnFail",
@@ -131,6 +142,8 @@ __all__ = [
     "TemplateError",
     "ValidateContext",
     "WtEvent",
+    "check_lock",
+    "collect_file_hashes",
     "create_builtin_caps",
     "create_step_context",
     "define_action",
@@ -150,9 +163,12 @@ __all__ = [
     "parse_duration",
     "parse_expr",
     "parse_pipeline",
+    "read_lock",
     "render_deep",
     "render_template",
     "resolve_outcome",
     "run_pipeline",
+    "sha256_file",
     "validate_pipeline",
+    "write_lock",
 ]

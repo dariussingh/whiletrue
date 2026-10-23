@@ -13,15 +13,21 @@ from whiletrue.abort import AbortSignal
 from whiletrue.cli.registry import create_default_registry, load_plugins
 from whiletrue.cli.templates import RALPH_AGENT, RALPH_PIPELINE
 from whiletrue.core import (
+    LOCK_FILE,
     ConfigError,
+    LockError,
     PipelineConfig,
     PipelineNode,
     Registry,
+    check_lock,
     format_diagnostic,
     has_errors,
     load_pipeline,
+    read_lock,
     run_pipeline,
+    sha256_file,
     validate_pipeline,
+    write_lock,
 )
 from whiletrue.store_sqlite import SqliteStore
 
@@ -44,6 +50,7 @@ Commands:
   plan              Print the expanded pipeline tree (no tokens spent)
   run               Run the pipeline
   status [run]      Show the latest (or given) run
+  lock              Pin the plugin versions in use to whiletrue.lock
 
 Options:
   -f, --file <path> Pipeline file (default: whiletrue.yaml)
@@ -70,7 +77,7 @@ class _Loaded:
     cwd: str
 
 
-def _load(io: Io, file: str) -> _Loaded | int:
+def _load(io: Io, file: str, *, check_pins: bool = True) -> _Loaded | int:
     path = (Path(io.cwd) / file).resolve()
     try:
         config = load_pipeline(path)
@@ -86,7 +93,20 @@ def _load(io: Io, file: str) -> _Loaded | int:
     except Exception as error:
         io.err(f"{error}\n")
         return EXIT.failed
-    return _Loaded(config, registry, str(path.parent))
+    cwd = str(path.parent)
+    if not check_pins:
+        return _Loaded(config, registry, cwd)
+    try:
+        pinned = read_lock(Path(cwd) / LOCK_FILE)
+    except LockError as error:
+        io.err(f"{error}\n")
+        return EXIT.failed
+    if pinned is not None:
+        problems = check_lock(pinned, registry.plugin_versions())
+        if problems:
+            io.err("".join(f"{p}\n" for p in problems) + "Run `whiletrue lock` to update it.\n")
+            return EXIT.failed
+    return _Loaded(config, registry, cwd)
 
 
 def _validated(io: Io, loaded: _Loaded) -> bool:
@@ -145,6 +165,7 @@ async def _run(io: Io, file: str) -> int:
             cwd=loaded.cwd,
             signal=io.signal,
             log=log,
+            lockfile=_lock_hash(loaded.cwd),
         )
         io.out(f"run {result.run_id}: {result.status}\n")
         for item in result.items:
@@ -156,6 +177,20 @@ async def _run(io: Io, file: str) -> int:
         }.get(result.status, EXIT.failed)
     finally:
         store.close()
+
+
+def _lock_hash(cwd: str) -> str | None:
+    path = Path(cwd) / LOCK_FILE
+    return sha256_file(path) if path.is_file() else None
+
+
+def _lock(io: Io, file: str) -> int:
+    loaded = _load(io, file, check_pins=False)
+    if isinstance(loaded, int):
+        return loaded
+    write_lock(Path(loaded.cwd) / LOCK_FILE, loaded.registry.plugin_versions())
+    io.out(f"wrote {LOCK_FILE}\n")
+    return EXIT.ok
 
 
 def _iso(ms: int) -> str:
@@ -257,6 +292,8 @@ async def main(argv: list[str], io: Io) -> int:
             return EXIT.ok
         case "run":
             return await _run(io, args.file)
+        case "lock":
+            return _lock(io, args.file)
         case "status":
             return _status(io, rest[0] if rest else None)
         case _:

@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import stat
@@ -11,6 +12,8 @@ import pytest
 from whiletrue.abort import AbortSignal
 from whiletrue.cli import EXIT, Io, create_default_registry, load_plugins, main
 from whiletrue.cli import registry as cli_registry
+from whiletrue.core import sha256_file
+from whiletrue.store_sqlite import SqliteStore
 
 
 @dataclass
@@ -410,3 +413,41 @@ def test_module_execution_works_as_a_subprocess() -> None:
     )
     assert done.returncode == 0
     assert "Usage: whiletrue" in done.stdout
+
+
+class TestLockFile:
+    async def test_lock_pins_plugin_versions_and_later_runs_check_them(self, cli: Cli) -> None:
+        project(cli.dir)
+        assert await cli("lock") == EXIT.ok
+        pinned = json.loads((cli.dir / "whiletrue.lock").read_text())["plugins"]
+        assert set(pinned) == {"whiletrue.basics", "whiletrue.claude_code", "whiletrue.control"}
+        assert await cli("validate") == EXIT.ok
+
+        (cli.dir / "whiletrue.lock").write_text(
+            json.dumps({"version": 1, "plugins": {**pinned, "whiletrue.control": "0.0.1"}})
+        )
+        cli.reset()
+        assert await cli("validate") == EXIT.failed
+        assert "pins 0.0.1" in cli.err
+        assert "Run `whiletrue lock`" in cli.err
+        assert await cli("lock") == EXIT.ok
+        assert await cli("validate") == EXIT.ok
+
+    async def test_a_broken_lock_file_is_reported(self, cli: Cli) -> None:
+        project(cli.dir)
+        (cli.dir / "whiletrue.lock").write_text("nope")
+        assert await cli("validate") == EXIT.failed
+        assert "Cannot read whiletrue.lock" in cli.err
+
+    async def test_runs_record_the_lock_hash(
+        self, cli: Cli, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project(cli.dir)
+        monkeypatch.setenv("WHILETRUE_CLAUDE_BIN", fake_claude(cli.dir, 1))
+        await cli("lock")
+        assert await cli("run") == EXIT.ok
+        store = SqliteStore(cli.dir / ".whiletrue" / "state.db")
+        run = store.latest_run()
+        assert run is not None
+        assert run.lockfile == sha256_file(cli.dir / "whiletrue.lock")
+        store.close()

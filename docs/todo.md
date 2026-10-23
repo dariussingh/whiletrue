@@ -48,7 +48,7 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 29. [x] Gates: `gate.shell`, `gate.tests`, `gate.diff_size`; validator enforces `deterministic`.
 30. [x] Result cache for `pure`/`deterministic` modules keyed by input hash.
 31. [x] Composites: declared ports/params, `uses:` import, nesting, param templating.
-32. [ ] `whiletrue.lock` (plugin version pins) and per-run hashes of pipeline/composite/prompt files.
+32. [x] `whiletrue.lock` (plugin version pins) and per-run hashes of pipeline/composite/prompt files.
 33. [ ] Record agent outputs; `whiletrue replay <run>` re-runs logic with no model calls.
 34. [ ] `whiletrue.recipes`: `ralph`, `review-pass`.
 35. [ ] **M1 exit:** `ralph` and `review-pass` recipes run; replay reproduces a recorded run.

@@ -57,6 +57,7 @@ class Registry:
         self._runners: dict[str, Runner] = {}
         self._providers: dict[str, Any] = {}
         self._plugins: list[str] = []
+        self._plugin_versions: dict[str, str] = {}
 
     def _assert_free_id(self, module_id: str) -> None:
         if module_id in self._actions or module_id in self._strategies:
@@ -102,11 +103,18 @@ class Registry:
     def ids(self) -> list[str]:
         return sorted([*self._actions, *self._strategies])
 
-    def use(self, plugin: Plugin) -> None:
+    def use(self, plugin: Plugin, version: str | None = None) -> None:
+        """Installs a plugin. `version` (else its `version` attribute) is what the lock pins."""
         if plugin.name in self._plugins:
             raise RegistryError(f'Plugin "{plugin.name}" is already installed')
         plugin.register(self)
         self._plugins.append(plugin.name)
+        self._plugin_versions[plugin.name] = version or str(
+            getattr(plugin, "version", "unversioned")
+        )
+
+    def plugin_versions(self) -> dict[str, str]:
+        return dict(self._plugin_versions)
 
     def plugins(self) -> list[str]:
         return list(self._plugins)
