@@ -5,8 +5,8 @@ from whiletrue.basics.diff_size import DiffSizeConfig, diff_size_module
 from whiletrue.basics.exec_ import ExecConfig, exec_module
 from whiletrue.basics.process import CommandResult, run_command, tail
 from whiletrue.basics.shell import (
-    ShellConfig,
     GateTestsConfig,
+    ShellConfig,
     gate_shell_module,
     gate_tests_module,
     shell_module,
@@ -31,11 +31,11 @@ __all__ = [
     "CommandResult",
     "DiffSizeConfig",
     "ExecConfig",
-    "ShellConfig",
     "GateTestsConfig",
-    "diff_size_module",
+    "ShellConfig",
     "agent_module",
     "basics_plugin",
+    "diff_size_module",
     "exec_module",
     "gate_shell_module",
     "gate_tests_module",

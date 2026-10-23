@@ -49,7 +49,7 @@ async def _run(_input: PortValues, ctx: StepContext[DiffSizeConfig]) -> Emit:
     lines = 0
     files = 0
     for row in diff.stdout.splitlines():
-        added, deleted, _name = (row.split("\t", 2) + ["", "", ""])[:3]
+        added, deleted, _name = [*row.split("\t", 2), "", "", ""][:3]
         files += 1
         # Binary files show "-" for both counts.
         lines += (int(added) if added.isdigit() else 0) + (int(deleted) if deleted.isdigit() else 0)
