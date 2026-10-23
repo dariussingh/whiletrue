@@ -2,7 +2,7 @@
 
 | #   | Question                                                                                                                                                                        | Decide by   |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| 1   | Does a `--plugin-dir` plugin bundling hooks and an MCP server behave as designed in interactive sessions, including the `Stop` nudge loop? (spike)                              | Start of M2 |
+| 1   | ~~Do `--plugin-dir` hooks and an MCP server behave as designed in interactive sessions?~~ **Resolved (2026-10-23): yes**, including the `Stop` nudge loop. See [spike-interactive.md](spike-interactive.md). | Done        |
 | 2   | How accurate is a budget estimate from transcript usage; is a soft cap acceptable for interactive steps?                                                                        | M2          |
 | 3   | After a whiletrue crash: re-attach to the still-running tmux pane, or restart with `claude --resume`?                                                                           | M3          |
 | 4   | For `session: item` across retries, how does resume behave when the working directory has changed?                                                                              | M3          |
