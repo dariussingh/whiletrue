@@ -1,0 +1,81 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${WT_PYTHON:-python3}\" \"${CLAUDE_PLUGIN_ROOT}/hook.py\" SessionStart",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${WT_PYTHON:-python3}\" \"${CLAUDE_PLUGIN_ROOT}/hook.py\" PreToolUse",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${WT_PYTHON:-python3}\" \"${CLAUDE_PLUGIN_ROOT}/hook.py\" PostToolUse",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${WT_PYTHON:-python3}\" \"${CLAUDE_PLUGIN_ROOT}/hook.py\" UserPromptSubmit",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${WT_PYTHON:-python3}\" \"${CLAUDE_PLUGIN_ROOT}/hook.py\" Notification",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${WT_PYTHON:-python3}\" \"${CLAUDE_PLUGIN_ROOT}/hook.py\" Stop",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${WT_PYTHON:-python3}\" \"${CLAUDE_PLUGIN_ROOT}/hook.py\" SessionEnd",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

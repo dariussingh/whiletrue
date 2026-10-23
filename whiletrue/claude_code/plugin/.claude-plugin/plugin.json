@@ -1,0 +1,5 @@
+{
+  "name": "whiletrue",
+  "version": "0.1.0",
+  "description": "Connects an interactive Claude Code session to a whiletrue run (hooks only; the MCP server is passed with --mcp-config)."
+}

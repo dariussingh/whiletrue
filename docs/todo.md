@@ -57,9 +57,9 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 
 36. [x] **Spike:** throwaway `--plugin-dir` plugin with hooks + MCP server in an interactive session, including `Stop` nudge loop. Record findings in `docs/`. (OQ-1)
 37. [x] `whiletrue.tmux`: create session, windows, panes, titles, grid layout (4 panes/window), `on_done: close|keep`, `whiletrue attach`.
-38. [ ] Local event endpoint in the whiletrue process (receives hook posts).
-39. [ ] Bundled Claude Code plugin: MCP tools `whiletrue_submit` (validated against output caps, returns schema errors), `whiletrue_learn`, `whiletrue_ask`, `whiletrue_context`.
-40. [ ] Plugin hooks: `SessionStart` (bind to step), `PostToolUse` (events/cost/turns), `UserPromptSubmit` (steer), `Notification` (flag pane), `Stop` (nudge up to N then park), `SessionEnd`.
+38. [x] Local event endpoint in the whiletrue process (receives hook posts).
+39. [x] Bundled Claude Code plugin: MCP tools `whiletrue_submit` (validated against output caps, returns schema errors), `whiletrue_learn`, `whiletrue_ask`, `whiletrue_context`.
+40. [x] Plugin hooks: `SessionStart` (bind to step), `PostToolUse` (events/cost/turns), `UserPromptSubmit` (steer), `Notification` (flag pane), `Stop` (nudge up to N then park), `SessionEnd`.
 41. [ ] Interactive runner: launch `claude "<prompt>"` with flag mapping (`--session-id`, `--resume`, `--fork-session`, `--model`, tools/permissions, `--append-system-prompt-file`, `--add-dir`, `--mcp-config`, `--plugin-dir`, `--bare`).
 42. [ ] Session memory options: `fresh`, `item`, named, `fork`; `session.end` and `context.reset` modules.
 43. [ ] Limits without headless flags: turns & wall time from hooks; budget estimate from transcript with `PreToolUse` deny → park `budget_exceeded`. (OQ-2)
