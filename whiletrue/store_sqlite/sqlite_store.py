@@ -262,7 +262,8 @@ class SqliteStore:
     def cache_put(self, key: str, value: Any, created_at: int) -> None:
         self._db.execute(
             "INSERT INTO cache (key, value, created_at) VALUES (?, ?, ?) "
-            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, created_at = excluded.created_at",
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, "
+            "created_at = excluded.created_at",
             (key, json.dumps(value), created_at),
         )
 
