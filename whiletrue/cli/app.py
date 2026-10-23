@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import signal as signal_module
 import sys
 from collections.abc import Callable
@@ -33,6 +34,7 @@ from whiletrue.core import (
     write_lock,
 )
 from whiletrue.store_sqlite import SqliteStore
+from whiletrue.tmux import TmuxController, session_name
 
 
 @dataclass
@@ -41,6 +43,10 @@ class Io:
     out: Callable[[str], object]
     err: Callable[[str], object]
     signal: AbortSignal | None = None
+    #: The project's tmux controller; defaults to the real one (tests inject a fake).
+    tmux: TmuxController | None = None
+    #: Replaces this process with the given argv (tmux attach); defaults to `os.execvp`.
+    attach: Callable[[list[str]], object] | None = None
 
 
 USAGE = """whiletrue — run configurable loops around coding agents
@@ -55,6 +61,7 @@ Commands:
   status [run]      Show the latest (or given) run
   replay [run]      Re-run a recorded run's logic without calling agents or tools
   lock              Pin the plugin versions in use to whiletrue.lock
+  attach            Attach to the project's tmux session (live agent panes)
 
 Options:
   -f, --file <path> Pipeline file (default: whiletrue.yaml)
@@ -232,6 +239,23 @@ async def _replay(io: Io, file: str, run_id: str | None) -> int:
         store.close()
 
 
+async def _attach(io: Io) -> int:
+    tmux = io.tmux or TmuxController(
+        session_name(io.cwd), binary=os.environ.get("WHILETRUE_TMUX_BIN", "tmux")
+    )
+    if not await tmux.has_session():
+        io.err(
+            f"No tmux session {tmux.session!r}: it exists while a run uses an interactive agent\n"
+        )
+        return EXIT.failed
+    argv = tmux.attach_argv()
+    if io.attach is not None:
+        io.attach(argv)
+    else:  # pragma: no cover (replaces this process)
+        os.execvp(argv[0], argv)
+    return EXIT.ok
+
+
 def _lock_hash(cwd: str) -> str | None:
     path = Path(cwd) / LOCK_FILE
     return sha256_file(path) if path.is_file() else None
@@ -347,6 +371,8 @@ async def main(argv: list[str], io: Io) -> int:
             return await _run(io, args.file)
         case "replay":
             return await _replay(io, args.file, rest[0] if rest else None)
+        case "attach":
+            return await _attach(io)
         case "lock":
             return _lock(io, args.file)
         case "status":

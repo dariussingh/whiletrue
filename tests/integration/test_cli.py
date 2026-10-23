@@ -14,6 +14,7 @@ from whiletrue.cli import EXIT, Io, create_default_registry, load_plugins, main
 from whiletrue.cli import registry as cli_registry
 from whiletrue.core import sha256_file
 from whiletrue.store_sqlite import SqliteStore
+from whiletrue.tmux import ExecResult, TmuxController
 
 
 @dataclass
@@ -23,6 +24,9 @@ class Cli:
     err: str = ""
     _signal: AbortSignal | None = field(default=None, repr=False)
 
+    tmux: TmuxController | None = None
+    attached: list[list[str]] = field(default_factory=lambda: [])
+
     async def __call__(self, *args: str, signal: AbortSignal | None = None) -> int:
         def out(text: str) -> None:
             self.out += text
@@ -30,7 +34,15 @@ class Cli:
         def err(text: str) -> None:
             self.err += text
 
-        return await main(list(args), Io(cwd=str(self.dir), out=out, err=err, signal=signal))
+        io = Io(
+            cwd=str(self.dir),
+            out=out,
+            err=err,
+            signal=signal,
+            tmux=self.tmux,
+            attach=self.attached.append,
+        )
+        return await main(list(args), io)
 
     def reset(self) -> None:
         self.out = ""
@@ -510,3 +522,22 @@ class TestReplay:
         (cli.dir / "whiletrue.yaml").write_text("pipeline: { nope: {} }")
         cli.reset()
         assert await cli("replay") == EXIT.failed
+
+
+class TestAttach:
+    async def test_attaches_to_the_project_session(self, cli: Cli) -> None:
+        async def fake(argv: list[str]) -> ExecResult:
+            return ExecResult(0, "", "")
+
+        cli.tmux = TmuxController("wt-demo", exec=fake)
+        assert await cli("attach") == EXIT.ok
+        assert cli.attached == [["tmux", "attach-session", "-t", "wt-demo"]]
+
+    async def test_explains_when_there_is_no_session(self, cli: Cli) -> None:
+        async def fake(argv: list[str]) -> ExecResult:
+            return ExecResult(1, "", "no server")
+
+        cli.tmux = TmuxController("wt-demo", exec=fake)
+        assert await cli("attach") == EXIT.failed
+        assert "No tmux session 'wt-demo'" in cli.err
+        assert cli.attached == []
