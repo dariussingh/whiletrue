@@ -76,6 +76,9 @@ class ActionModule[Cfg: BaseModel]:
     run: Callable[[PortValues, StepContext[Cfg]], Awaitable[Emit]]
     kind: Literal["action"] = "action"
     capabilities: list[str] = field(default_factory=lambda: [])
+    #: Whether results of `pure`/`deterministic` runs may be cached by input hash. Modules that
+    #: read the workspace (gates, shell) must set this to False.
+    cacheable: bool = True
     #: Extra static checks beyond the config schema (e.g. agent limits).
     validate: Callable[[Cfg, ValidateContext], list[ConfigIssue]] | None = None
     #: Required for `side-effect` modules: a deterministic key so resume never repeats the effect.

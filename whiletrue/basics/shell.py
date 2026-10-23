@@ -26,10 +26,14 @@ class ShellConfig(BaseModel):
     timeout: str | int | float | None = None
 
 
-def _make_shell(
-    module_id: str, effects: Literal["side-effect", "deterministic"]
-) -> ActionModule[ShellConfig]:
-    def validate(config: ShellConfig, _vctx: object) -> list[ConfigIssue]:
+class GateTestsConfig(ShellConfig):
+    run: str = Field(default="pytest", min_length=1)
+
+
+def _make_shell[Cfg: ShellConfig](
+    module_id: str, effects: Literal["side-effect", "deterministic"], config_cls: type[Cfg]
+) -> ActionModule[Cfg]:
+    def validate(config: Cfg, _vctx: object) -> list[ConfigIssue]:
         if config.timeout is None:
             return []
         try:
@@ -38,7 +42,7 @@ def _make_shell(
             return [ConfigIssue("error", str(error))]
         return []
 
-    async def run(_input: PortValues, ctx: StepContext[ShellConfig]) -> Emit:
+    async def run(_input: PortValues, ctx: StepContext[Cfg]) -> Emit:
         cfg = ctx.config
         result = await run_command(
             "sh",
@@ -68,13 +72,14 @@ def _make_shell(
     return define_action(
         ActionModule(
             id=module_id,
-            config=ShellConfig,
+            config=config_cls,
             ports=Ports(
                 inputs=[PortSpec("in", "Any")],
                 outputs=[PortSpec("out", "Text")],
             ),
             effects=effects,
             validate=validate,  # pyright: ignore[reportArgumentType]
+            cacheable=False,
             idempotency_key=(lambda _i, ctx: f"shell:{ctx.step_key}")
             if effects == "side-effect"
             else None,
@@ -84,6 +89,8 @@ def _make_shell(
 
 
 #: Runs a shell command. Fires `ok` on exit 0, otherwise `fail` with the output tail.
-shell_module = _make_shell("shell", "side-effect")
+shell_module = _make_shell("shell", "side-effect", ShellConfig)
 #: A deterministic gate: pass/fail by exit code only.
-gate_shell_module = _make_shell("gate.shell", "deterministic")
+gate_shell_module = _make_shell("gate.shell", "deterministic", ShellConfig)
+#: A deterministic gate for the test suite: `run` defaults to `pytest`.
+gate_tests_module = _make_shell("gate.tests", "deterministic", GateTestsConfig)
