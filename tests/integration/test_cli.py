@@ -78,7 +78,7 @@ def project(directory: Path, max_iterations: int = 5) -> None:
     (directory / "agents").mkdir(exist_ok=True)
     (directory / "agents" / "ralph.md").write_text(
         "---\nagent: ralph\nlimits: { budget_usd: 1, turns: 5, wall: 1m }\n---\n"
-        "Fix it. Previous: {{loop.previous}}\n"
+        "Fix it. Previous: {{iter.previous}}\n"
     )
 
 

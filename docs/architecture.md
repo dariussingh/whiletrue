@@ -122,7 +122,7 @@ ports:
   out: { findings: ReviewFindings }
 strategy: { loop: { over: "{{params.kinds}}", collect: findings } }
 do:
-  - agent: { uses: ./agents/review.md, runner: "{{params.runner}}", vars: { kind: "{{loop.value}}" } }
+  - agent: { uses: ./agents/review.md, runner: "{{params.runner}}", vars: { kind: "{{iter.value}}" } }
 ```
 
 ### Agent module example

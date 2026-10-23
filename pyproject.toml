@@ -35,7 +35,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/whiletrue"]
+packages = ["whiletrue"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -58,7 +58,7 @@ exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "\\.\\.\\.$"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["src", "tests"]
+src = [".", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "ASYNC", "RUF", "PT", "C4", "PL", "TID"]
@@ -68,14 +68,14 @@ ignore = ["PLR0913", "PLR2004", "PLR0911", "PLR0912", "PLR0915", "RUF012"]
 "tests/**" = ["PLR", "PLC0415", "B011", "RUF029", "SLF001", "E501", "ASYNC240", "RUF043", "PT022", "UP031", "PT018"]
 
 [tool.pyright]
-include = ["src", "tests"]
+include = ["whiletrue", "tests"]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
 venvPath = ".devenv/state"
 venv = "venv"
 executionEnvironments = [
-  { root = "tests", extraPaths = ["src"], reportPrivateUsage = false, reportUnknownMemberType = false, reportUnknownVariableType = false, reportUnknownArgumentType = false, reportUnknownParameterType = false, reportUnknownLambdaType = false, reportMissingParameterType = false },
-  { root = "src" },
+  { root = "tests", extraPaths = ["."], reportPrivateUsage = false, reportUnknownMemberType = false, reportUnknownVariableType = false, reportUnknownArgumentType = false, reportUnknownParameterType = false, reportUnknownLambdaType = false, reportMissingParameterType = false },
+  { root = "whiletrue" },
 ]
 
 [tool.poe.tasks]

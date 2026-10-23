@@ -12,6 +12,7 @@ from whiletrue.core import (
     Ports,
     PortSpec,
     Registry,
+    RunItem,
     RunResult,
     StepContext,
     ValidateContext,
@@ -37,7 +38,7 @@ class Harness:
         self.registry.use(control_plugin)
 
         async def run(input: PortValues, ctx: StepContext[StepCfg]) -> Emit:
-            self.calls.append((input.get("in"), ctx.scope.get("loop")))
+            self.calls.append((input.get("in"), ctx.scope.get("iter")))
             script = self.scripts.get(ctx.config.name, [])
             return script.pop(0) if script else Emit("ok", f"{ctx.config.name}-default")
 
@@ -132,10 +133,10 @@ async def test_loop_stops_at_the_first_ok_iteration_ralph() -> None:
     result = await t.run("pipeline:\n  loop:\n    max: 5\n    do:\n      - step: { name: work }\n")
     assert (result.items[0].state, result.items[0].value) == ("done", "green")
     assert [c[1] for c in t.calls] == [
-        {"index": 1, "previous": ""},
-        {"index": 2, "previous": "tests failed\n2 failing"},
-        {"index": 3, "previous": "plain text failure"},
-        {"index": 4, "previous": '{"other":1}'},
+        {"index": 1, "previous": "", "value": None},
+        {"index": 2, "previous": "tests failed\n2 failing", "value": None},
+        {"index": 3, "previous": "plain text failure", "value": None},
+        {"index": 4, "previous": '{"other":1}', "value": None},
     ]
 
 
@@ -220,3 +221,123 @@ def test_loop_is_rejected_by_validate_without_max() -> None:
     )
     assert check("max: 2, ") == []
     assert 'Invalid config for "loop"' in check("max: 0, ")[0].message
+
+
+async def test_wires_route_a_failure_to_a_sibling_and_continue_from_there() -> None:
+    t = Harness()
+    t.scripts["check"] = [Emit("fail", {"error": "red"}), Emit("ok", "green")]
+    t.scripts["fix"] = [Emit("ok", "patched")]
+    result = await t.run(
+        """
+pipeline:
+  - id: check
+    step: { name: check }
+    wires: { fail: fix, ok: done }
+  - id: fix
+    step: { name: fix }
+    wires: { ok: check }
+  - id: done
+    step: { name: done }
+"""
+    )
+    assert result.items[0].state == "done"
+    assert t.inputs == [None, {"error": "red"}, "patched", "green"]
+
+
+async def test_wires_that_cycle_forever_are_cut_off() -> None:
+    t = Harness()
+    result = await t.run(
+        """
+pipeline:
+  - id: a
+    step: { name: a }
+    wires: { ok: b }
+  - id: b
+    step: { name: b }
+    wires: { ok: a }
+"""
+    )
+    assert result.items[0].port == "fail"
+    assert "routed more than" in str(result.items[0].value)
+
+
+async def test_loop_until_expression_ends_the_loop() -> None:
+    t = Harness()
+    t.scripts["w"] = [Emit("ok", 1), Emit("ok", 2), Emit("ok", 3)]
+    result = await t.run(
+        "pipeline: { loop: { max: 5, until: 'last.value >= 2', do: [ { step: { name: w } } ] } }"
+    )
+    assert (result.items[0].port, result.items[0].value) == ("ok", 2)
+    assert len(t.calls) == 2
+
+
+async def test_loop_until_keeps_going_through_failures_and_gives_up_at_max() -> None:
+    t = Harness()
+    t.scripts["w"] = [Emit("fail", "x"), Emit("fail", "y")]
+    result = await t.run(
+        "pipeline: { loop: { max: 2, until: 'last.ok', do: [ { step: { name: w } } ] } }"
+    )
+    assert result.items[0].port == "fail"
+    assert len(t.calls) == 2
+
+
+async def test_loop_over_iterates_a_list_and_collects() -> None:
+    t = Harness()
+    result = await t.run(
+        """
+pipeline:
+  loop:
+    over: "[1, 2, 3]"
+    collect: true
+    do: [ { step: { name: "n-{{iter.value}}" } } ]
+"""
+    )
+    assert result.items[0].value == ["n-1-default", "n-2-default", "n-3-default"]
+    assert [c[1]["index"] for c in t.calls] == [1, 2, 3]
+
+
+async def test_loop_over_without_collect_returns_the_last_value_and_fails_fast() -> None:
+    t = Harness()
+    t.scripts["w"] = [Emit("ok", "a"), Emit("fail", "boom"), Emit("ok", "c")]
+    result = await t.run("pipeline: { loop: { over: '[1,2,3]', do: [ { step: { name: w } } ] } }")
+    assert (result.items[0].port, result.items[0].value) == ("fail", "boom")
+    assert len(t.calls) == 2
+    ok = await t.run("pipeline: { loop: { over: '[1,2]', do: [ { step: { name: w } } ] } }")
+    assert ok.items[0].value == "w-default"
+    empty = await t.run("pipeline: { loop: { over: '[]', do: [ { step: { name: w } } ] } }")
+    assert (empty.items[0].port, empty.items[0].value) == ("ok", None)
+
+
+async def test_loop_over_must_be_a_list() -> None:
+    t = Harness()
+    result = await t.run("pipeline: { loop: { over: '5', do: [ { step: { name: w } } ] } }")
+    assert "must be a list" in str(result.items[0].value)
+
+
+async def test_loop_over_reads_the_item_payload_and_max_caps_it() -> None:
+    t = Harness()
+    result = await run_pipeline(
+        registry=t.registry,
+        config=parse_pipeline(
+            "pipeline: { loop: { over: 'item.files', max: 2, collect: true, "
+            "do: [ { step: { name: s } } ] } }"
+        ),
+        store=MemoryStore(),
+        items=[RunItem("i", {"files": ["a", "b", "c"]})],
+    )
+    assert len(result.items[0].value) == 2
+
+
+def test_loop_validates_its_expressions() -> None:
+    t = Harness()
+
+    def check(clause: str) -> list[str]:
+        text = f"pipeline: {{ loop: {{ {clause}, do: [ {{ step: {{ name: a }} }} ] }} }}"
+        diags = validate_pipeline(parse_pipeline(text, "w.yaml"), t.registry)
+        return [d.message for d in diags]
+
+    assert check("over: '[1]'") == []
+    assert check("max: 2, until: 'last.ok'") == []
+    assert any("Unknown variable" in m for m in check("max: 2, until: 'nope.x'"))
+    assert any("syntax" in m for m in check("max: 2, until: '1 +'"))
+    assert any("requires `max`" in m for m in check("until: 'last.ok'"))

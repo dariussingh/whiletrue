@@ -3,7 +3,7 @@
 import ast
 from pathlib import Path
 
-SRC = Path(__file__).resolve().parents[2] / "src" / "whiletrue"
+SRC = Path(__file__).resolve().parents[2] / "whiletrue"
 FORBIDDEN_IN_CORE = {"git", "gh", "github", "tmux", "claude_code", "opencode", "basics", "cli"}
 
 

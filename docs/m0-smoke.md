@@ -24,7 +24,7 @@ permission_mode: acceptEdits
 tools: [Write]
 limits: { budget_usd: 0.5, turns: 6, wall: 3m }
 ---
-Create a file named done.txt in the current directory containing exactly the word hello. Previous failure output, if any: {{loop.previous}}
+Create a file named done.txt in the current directory containing exactly the word hello. Previous failure output, if any: {{iter.previous}}
 MD
 WT="$W/.devenv/state/venv/bin/whiletrue"
 $WT validate

@@ -37,8 +37,4 @@
 
 What `Expr.check` therefore does: unknown-variable and function-allow-list checks, not full cap type-checking. Cap-level checking of expressions is deferred to the validator, using port caps for the variables. Mitigation for the missing limits: a 4096-character cap on the source, and CEL being non-Turing-complete.
 
-**Consequence:** `loop` is a reserved CEL word, so expressions refer to the loop scope as `iter` (`iter.i`, `iter.previous`). Templates (`{{loop.previous}}`) still use `loop` for now. See OQ-10.
-
-## OQ-10: one name for the loop scope?
-
-Templates use `loop.*`, CEL must use `iter.*`. Rename the template scope to `iter` too (one name everywhere, small breaking change to the Ralph template and `docs/architecture.md`), or keep both? Recommendation: rename to `iter` when item 26 wires `until:`.
+**Consequence:** `loop` is a reserved CEL word, so the loop scope is named `iter` everywhere (templates and expressions): `iter.index` (1-based), `iter.previous`, and `iter.value` inside `over`/`map`. Decided OQ-10 (2026-10-23): one name, `iter`.

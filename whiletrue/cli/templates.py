@@ -20,5 +20,5 @@ limits: { budget_usd: 2, turns: 40, wall: 20m }
 Work through the next unfinished item in TODO.md. Make the tests pass.
 
 Failure output from the previous attempt (empty on the first try):
-{{loop.previous}}
+{{iter.previous}}
 """
