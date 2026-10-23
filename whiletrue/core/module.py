@@ -91,6 +91,8 @@ class Strategy[Cfg: BaseModel]:
     chain: bool = False
     #: Extra static checks beyond the config schema (e.g. loops must be bounded).
     validate: Callable[[Cfg, ValidateContext], list[ConfigIssue]] | None = None
+    #: Static checks that need the step's children (e.g. `switch` case targets).
+    validate_node: Callable[[Cfg, PipelineNode, ValidateContext], list[ConfigIssue]] | None = None
 
 
 class ModuleDefinitionError(Exception):

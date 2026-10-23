@@ -1,3 +1,5 @@
+import asyncio
+import time
 from typing import Any
 
 from pydantic import BaseModel
@@ -341,3 +343,190 @@ def test_loop_validates_its_expressions() -> None:
     assert any("Unknown variable" in m for m in check("max: 2, until: 'nope.x'"))
     assert any("syntax" in m for m in check("max: 2, until: '1 +'"))
     assert any("requires `max`" in m for m in check("until: 'last.ok'"))
+
+
+async def test_map_runs_children_per_element_and_returns_results() -> None:
+    t = Harness()
+    result = await t.run(
+        "pipeline: { map: { over: '[\"a\", \"b\"]', do: [ { step: { name: 'p-{{iter.value}}' } } ] } }"
+    )
+    assert result.items[0].value == ["p-a-default", "p-b-default"]
+    assert [c[1]["value"] for c in t.calls] == ["a", "b"]
+
+
+async def test_map_stops_at_the_first_failure_and_rejects_non_lists() -> None:
+    t = Harness()
+    t.scripts["w"] = [Emit("ok", 1), Emit("fail", "bad")]
+    result = await t.run("pipeline: { map: { over: '[1,2,3]', do: [ { step: { name: w } } ] } }")
+    assert (result.items[0].port, result.items[0].value) == ("fail", "bad")
+    assert len(t.calls) == 2
+    bad = await t.run("pipeline: { map: { over: '1', do: [ { step: { name: w } } ] } }")
+    assert "must be a list" in str(bad.items[0].value)
+
+
+async def test_map_stops_when_cancelled() -> None:
+    t = Harness()
+    signal = AbortSignal()
+    signal.abort()
+    res = await t.run("pipeline: { map: { over: '[1]', do: [ { step: { name: w } } ] } }", signal)
+    assert res.status == "cancelled"
+
+
+async def test_parallel_runs_children_on_the_same_input_and_collects_in_order() -> None:
+    t = Harness()
+    t.scripts["a"] = [Emit("ok", "A")]
+    t.scripts["b"] = [Emit("ok", "B")]
+    result = await t.run(
+        "pipeline: { parallel: { do: [ { step: { name: a } }, { step: { name: b } } ] } }"
+    )
+    assert result.items[0].value == ["A", "B"]
+
+
+async def test_parallel_returns_the_first_non_continuing_outcome() -> None:
+    t = Harness()
+    t.scripts["b"] = [Emit("fail", "b broke")]
+    t.scripts["c"] = [Emit("fail", "c broke")]
+    result = await t.run(
+        "pipeline: { parallel: { do: [ { step: { name: a } }, { step: { name: b } },"
+        " { step: { name: c } } ] } }"
+    )
+    assert (result.items[0].port, result.items[0].value) == ("fail", "b broke")
+
+
+SWITCH = """
+pipeline:
+  switch:
+    on: "input"
+    cases: { x: cx, "2": two }
+    default: other
+    do:
+      - { id: cx, step: { name: cx } }
+      - { id: two, step: { name: two } }
+      - { id: other, step: { name: other } }
+"""
+
+
+async def test_switch_runs_the_matching_case_default_or_skips() -> None:
+    t = Harness()
+    for value, expected in (("x", "cx-default"), (2, "two-default"), ("zzz", "other-default")):
+        result = await run_pipeline(
+            registry=t.registry,
+            config=parse_pipeline(SWITCH.replace("input", "item.v")),
+            store=MemoryStore(),
+            items=[RunItem("i", {"v": value})],
+        )
+        assert result.items[0].value == expected
+    no_default = SWITCH.replace("    default: other\n", "").replace("item.v", "item.v")
+    result = await run_pipeline(
+        registry=t.registry,
+        config=parse_pipeline(no_default.replace("input", "item.v")),
+        store=MemoryStore(),
+        items=[RunItem("i", {"v": "nope"})],
+    )
+    assert (result.items[0].state, result.items[0].port) == ("done", "skip")
+
+
+def test_switch_validates_its_targets_and_expression() -> None:
+    t = Harness()
+
+    def check(text: str) -> list[str]:
+        return [d.message for d in validate_pipeline(parse_pipeline(text, "w.yaml"), t.registry)]
+
+    assert check(SWITCH.replace("input", "item.v")) == []
+    bad = SWITCH.replace("cx", "gone", 1).replace("default: other", "default: nope")
+    messages = check(bad.replace("input", "item.v"))
+    assert any('unknown step "gone"' in m for m in messages)
+    assert any('unknown step "nope"' in m for m in messages)
+    assert any("Unknown variable" in m for m in check(SWITCH.replace("input", "zip.x")))
+
+
+async def test_retry_reruns_until_success_and_feeds_back_the_failure() -> None:
+    t = Harness()
+    t.scripts["w"] = [Emit("fail", {"error": "e1"}), Emit("fail", "e2"), Emit("ok", "fine")]
+    result = await t.run("pipeline: { retry: { max: 3, do: [ { step: { name: w } } ] } }")
+    assert (result.items[0].state, result.items[0].value) == ("done", "fine")
+    assert [c[1]["previous"] for c in t.calls] == ["", "e1", "e2"]
+
+
+async def test_retry_parks_for_a_human_when_exhausted_by_default() -> None:
+    t = Harness()
+    t.scripts["w"] = [Emit("fail", "x"), Emit("fail", "y")]
+    result = await t.run(
+        "pipeline: { retry: { max: 2, backoff: 1ms, factor: 2, do: [ { step: { name: w } } ] } }"
+    )
+    assert (result.items[0].state, result.items[0].port) == ("parked", "needs_human")
+    t.scripts["w"] = [Emit("fail", "x")]
+    failed = await t.run(
+        "pipeline: { retry: { max: 1, on_exhausted: fail, feedback: false,"
+        " do: [ { step: { name: w } } ] } }"
+    )
+    assert failed.items[0].port == "fail"
+
+
+async def test_retry_passes_other_outcomes_through_and_honours_cancellation() -> None:
+    t = Harness()
+    t.scripts["w"] = [Emit("needs_human", "q")]
+    result = await t.run("pipeline: { retry: { max: 3, do: [ { step: { name: w } } ] } }")
+    assert result.items[0].port == "needs_human"
+    assert len(t.calls) == 1
+    signal = AbortSignal()
+    signal.abort()
+    cancelled = await t.run("pipeline: { retry: { do: [ { step: { name: w } } ] } }", signal)
+    assert cancelled.status == "cancelled"
+
+
+async def test_retry_backoff_wait_ends_early_on_abort() -> None:
+    t = Harness()
+    t.scripts["w"] = [Emit("fail", "x")] * 3
+    signal = AbortSignal()
+    asyncio.get_running_loop().call_later(0.05, signal.abort)
+    started = time.monotonic()
+    await t.run(
+        "pipeline: { retry: { max: 3, backoff: 30s, do: [ { step: { name: w } } ] } }", signal
+    )
+    assert time.monotonic() - started < 5
+
+
+def test_retry_validates_backoff() -> None:
+    t = Harness()
+    text = "pipeline: { retry: { backoff: soon, do: [ { step: { name: a } } ] } }"
+    diags = validate_pipeline(parse_pipeline(text, "w.yaml"), t.registry)
+    assert any("Invalid duration" in d.message for d in diags)
+    ok = "pipeline: { retry: { backoff: 2s, do: [ { step: { name: a } } ] } }"
+    assert validate_pipeline(parse_pipeline(ok, "w.yaml"), t.registry) == []
+
+
+async def test_try_swallows_failures() -> None:
+    t = Harness()
+    t.scripts["a"] = [Emit("ok", "A")]
+    t.scripts["w"] = [Emit("fail", "x"), Emit("fail", "y")]
+    seq = await t.run(
+        "pipeline:\n  - step: { name: a }\n  - try: { do: [ { step: { name: w } } ] }\n"
+        "  - step: { name: c }\n"
+    )
+    assert seq.items[0].state == "done"
+    assert t.inputs[-1] == "A"
+    as_ok = await t.run("pipeline: { try: { emit: ok, do: [ { step: { name: w } } ] } }")
+    assert (as_ok.items[0].port, as_ok.items[0].value) == ("ok", "y")
+
+
+async def test_try_keeps_success_and_does_not_hide_cancellation() -> None:
+    t = Harness()
+    ok = await t.run("pipeline: { try: { do: [ { step: { name: z } } ] } }")
+    assert ok.items[0].value == "z-default"
+    signal = AbortSignal()
+    signal.abort()
+    res = await t.run("pipeline: { try: { do: [ { step: { name: z } } ] } }", signal)
+    assert res.status == "cancelled"
+
+
+def test_map_validates_its_expression() -> None:
+    t = Harness()
+
+    def check(over: str) -> list[str]:
+        text = f"pipeline: {{ map: {{ over: '{over}', do: [ {{ step: {{ name: a }} }} ] }} }}"
+        return [d.message for d in validate_pipeline(parse_pipeline(text, "w.yaml"), t.registry)]
+
+    assert check("[1]") == []
+    assert any("Unknown variable" in m for m in check("zip.x"))
+    assert any("syntax" in m for m in check("1 +"))

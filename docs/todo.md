@@ -43,8 +43,8 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 24. [x] Spike Python CEL libraries (`cel-python`, `common-expression-language`: schema type-check, restricted functions, timeout/cost limit); pick one or fall back to a small whiletrue-owned subset + own cap checker. Implement the `Expr` interface (`parse`, `check`, `eval`) and sandboxed evaluator for `until:`/templates. (OQ-6, decided: CEL)
 25. [x] `whiletrue.control`: `sequence` with automatic `out → in` wiring and explicit `wires:`.
 26. [x] `loop` (`max`/`max: unbounded`, `until`, `over`, `collect`).
-27. [ ] `map` (sequential first), `parallel`, `switch`.
-28. [ ] `retry` (`max`, `backoff`, `feedback`) and `try`; default park-as-`needs_human` on exhausted retries.
+27. [x] `map` (sequential first), `parallel`, `switch`.
+28. [x] `retry` (`max`, `backoff`, `feedback`) and `try`; default park-as-`needs_human` on exhausted retries.
 29. [ ] Gates: `gate.shell`, `gate.tests`, `gate.diff_size`; validator enforces `deterministic`.
 30. [ ] Result cache for `pure`/`deterministic` modules keyed by input hash.
 31. [ ] Composites: declared ports/params, `uses:` import, nesting, param templating.

@@ -37,7 +37,7 @@ class LoopConfig(BaseModel):
     stop_when: Literal["ok", "never"] = "ok"
 
 
-def _describe(value: Any) -> str:
+def describe(value: Any) -> str:
     if isinstance(value, str):
         return value
     if isinstance(value, dict):
@@ -106,7 +106,7 @@ async def _run(
             "iter",
             {
                 "index": index,
-                "previous": _describe("" if last.port == "ok" else last.value),
+                "previous": describe("" if last.port == "ok" else last.value),
                 "value": items[index - 1] if items is not None else None,
             },
         )

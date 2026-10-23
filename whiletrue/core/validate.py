@@ -68,6 +68,8 @@ def validate_pipeline(
             else:
                 if module.validate is not None:
                     push_issues(node, module.validate(parsed, vctx))
+                if resolved.kind == "strategy" and module.validate_node is not None:
+                    push_issues(node, module.validate_node(parsed, node, vctx))
 
             if resolved.kind == "action":
                 if node.children:
