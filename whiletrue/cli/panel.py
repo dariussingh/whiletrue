@@ -12,7 +12,7 @@ from whiletrue.cli.common import Io
 from whiletrue.core import StateStore
 from whiletrue.tmux import TmuxController
 
-KEYS = "j/k move   a approve   r reject   f focus pane   q quit   (rerun/cancel: not built yet)"
+KEYS = "j/k move  a approve  r reject  c cancel  f focus pane  R rerun (hint)  q quit"
 
 
 @dataclass
@@ -118,11 +118,23 @@ class Panel:
             await self._decide(row, approve=key == "a")
         elif key == "f":
             await self._focus(row)
-        elif key in ("R", "c"):
-            self.message = (
-                "rerun and cancel need the scheduler (milestone 3); use Ctrl-C on the run"
-            )
+        elif key == "c":
+            self._cancel(row)
+        elif key == "R":
+            self.message = f"run: whiletrue rerun {row.item} [--from <step>]"
         return True
+
+    def _cancel(self, row: Row) -> None:
+        run = self._store.latest_run()
+        if run is None or row.state in ("done", "cancelled"):
+            self.message = f"{row.item} is already {row.state}"
+            return
+        for park in self._store.list_parks(row.item, undecided_only=True):
+            self._store.decide_park(
+                park.id, "rejected", decided_by=self._who, decided_at=self._now(), notes="cancelled"
+            )
+        self._store.set_item_state(run.id, row.item, "cancelled")
+        self.message = f"{row.item}: cancelled"
 
     async def _decide(self, row: Row, *, approve: bool) -> None:
         waiting = self._store.list_parks(row.item, undecided_only=True)

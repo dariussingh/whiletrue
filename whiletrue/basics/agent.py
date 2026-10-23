@@ -194,8 +194,13 @@ async def _run(input: PortValues, ctx: StepContext[AgentConfig]) -> Emit:
             item_id=ctx.item_id,
         )
 
+    on_event({"kind": "runner", "runner": runner_id})
     try:
-        result = await runner.run(request, RunContext(signal=signal, on_event=on_event))
+        if ctx.agent_slots is not None:
+            async with ctx.agent_slots:
+                result = await runner.run(request, RunContext(signal=signal, on_event=on_event))
+        else:
+            result = await runner.run(request, RunContext(signal=signal, on_event=on_event))
     finally:
         if wall is not None:
             wall.dispose()

@@ -140,8 +140,9 @@ The interactive runner (`whiletrue/claude_code/interactive.py`) shows a runner w
 | `source` | `async fetch(config, cwd) -> list[RunItem]` | the top-level `source:` block |
 | `comments` | `async fetch(ctx) -> list[IncomingComment]` and `async reply(comment, body, ctx) -> str \| None` | `human.approve` (new comments) and `comments.reply`. Never resolve threads |
 | `wake` | `async check(arg, ctx) -> WakeResult \| None` | `wake:` conditions of `human.approve` |
+| `workspace` | `async create(config, item, cwd) -> Workspace(path, release)` | the top-level `workspace:` block; `release(final_state)` runs when the item stops (remove the checkout when `done`, keep it when parked); `create` must reuse an existing workspace |
 
-A wake checker looks at the world and returns `WakeResult("approved" \| "rejected", note, by=...)` or None to keep waiting; `ctx` has the park, the item and the gate's input. See `whiletrue/basics/wake.py` (`file_exists`, `timer`) and `whiletrue/github/plugin.py`.
+The step context also has `ctx.agent_slots` (a semaphore when `max_agents` is set; runners that start sessions should acquire it). A wake checker looks at the world and returns `WakeResult("approved" \| "rejected", note, by=...)` or None to keep waiting; `ctx` has the park, the item and the gate's input. See `whiletrue/basics/wake.py` (`file_exists`, `timer`) and `whiletrue/github/plugin.py`.
 
 ## Side effects that must not repeat
 

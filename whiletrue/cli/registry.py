@@ -20,7 +20,9 @@ from whiletrue.claude_code import (
 )
 from whiletrue.control import control_plugin
 from whiletrue.core import Plugin, Registry
+from whiletrue.git import git_plugin
 from whiletrue.github import GitHubClient, github_plugin
+from whiletrue.opencode import OpencodeOptions, opencode_plugin
 from whiletrue.tmux import TmuxController, session_name
 
 #: Third-party plugins advertise themselves under this entry-point group.
@@ -57,6 +59,7 @@ def create_default_registry(options: RegistryOptions | None = None) -> Registry:
     version = whiletrue_version()
     registry.use(control_plugin, version)
     registry.use(basics_plugin, version)
+    registry.use(git_plugin, version)
     registry.use(github_plugin(opts.github), version)
     command = opts.claude_command or os.environ.get("WHILETRUE_CLAUDE_BIN") or "claude"
     project = opts.project_dir or os.getcwd()
@@ -68,6 +71,14 @@ def create_default_registry(options: RegistryOptions | None = None) -> Registry:
     registry.use(
         claude_code_plugin(
             HeadlessOptions(command=command), InteractiveOptions(command=command, host=host)
+        ),
+        version,
+    )
+    registry.use(
+        opencode_plugin(
+            OpencodeOptions(
+                command=os.environ.get("WHILETRUE_OPENCODE_BIN") or "opencode", host=host
+            )
         ),
         version,
     )

@@ -135,12 +135,23 @@ async def test_focus_selects_the_items_pane() -> None:
     assert "no tmux session" in detached.message
 
 
-async def test_rerun_and_cancel_are_honest_about_not_existing_yet() -> None:
+async def test_cancel_closes_the_gate_and_marks_the_item() -> None:
+    store = seeded()
+    p = panel(store)
+    await p.key("c")
+    assert p.message == "7: cancelled"
+    item = store.get_item("r", "7")
+    assert item is not None and item.state == "cancelled"
+    [park] = store.list_parks("7")
+    assert (park.decision, park.decided_by, park.notes) == ("rejected", "tester", "cancelled")
+    await p.key("c")
+    assert "already cancelled" in p.message
+
+
+async def test_rerun_points_at_the_command() -> None:
     p = panel(seeded())
     await p.key("R")
-    assert "milestone 3" in p.message
-    await p.key("c")
-    assert "milestone 3" in p.message
+    assert p.message == "run: whiletrue rerun 7 [--from <step>]"
 
 
 async def test_an_empty_panel_ignores_actions() -> None:

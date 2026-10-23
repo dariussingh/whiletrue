@@ -18,6 +18,7 @@ from whiletrue.basics.history import (
 )
 from whiletrue.basics.human import ApproveConfig, approve_strategy
 from whiletrue.basics.json_source import JsonSource
+from whiletrue.basics.markdown_source import MarkdownTasksSource
 from whiletrue.basics.process import CommandResult, run_command, tail
 from whiletrue.basics.sessions import (
     SessionEndConfig,
@@ -52,6 +53,7 @@ def _register(api: PluginApi) -> None:
     api.register_action(gate_comments_answered_module)
     api.register_strategy(approve_strategy)
     api.register_provider("source", "json", JsonSource())
+    api.register_provider("source", "markdown_tasks", MarkdownTasksSource())
     api.register_provider("wake", "file_exists", FileExistsWake())
     api.register_provider("wake", "timer", TimerWake())
     api.register_cap("CommentReplies", CommentReplies)
@@ -72,6 +74,7 @@ __all__ = [
     "GateTestsConfig",
     "HistoryConfig",
     "JsonSource",
+    "MarkdownTasksSource",
     "SessionEndConfig",
     "SetConfig",
     "ShellConfig",

@@ -51,6 +51,10 @@ class PipelineConfig:
     on_fail: OnFail
     #: Cache results of pure/deterministic modules by input hash.
     cache: bool
+    #: How many items run at once.
+    parallel: int
+    #: Cap on live agent sessions across the whole run (None: unlimited).
+    max_agents: int | None
     #: Passed through for providers (source, comments, ...).
     extra: dict[str, Any]
     root: PipelineNode
@@ -155,6 +159,8 @@ class _TopLevel(BaseModel):
     on_idle: Literal["exit", "watch"] = "exit"
     on_fail: Literal["park", "drop", "propagate"] = "park"
     cache: bool = True
+    parallel: int = Field(default=1, ge=1)
+    max_agents: int | None = Field(default=None, ge=1)
 
 
 def _build_node(
@@ -274,6 +280,8 @@ def parse_pipeline(
         on_idle=top.on_idle,
         on_fail=top.on_fail,
         cache=top.cache,
+        parallel=top.parallel,
+        max_agents=top.max_agents,
         extra=extra,
         root=root,
         sources=sources,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
@@ -24,10 +25,17 @@ from whiletrue.core.context import (
 from whiletrue.core.events import EventBus
 from whiletrue.core.lock import collect_file_hashes
 from whiletrue.core.module import Emit, PortValues
-from whiletrue.core.outcomes import ItemState, OutcomePolicy, is_outcome_port, item_state_for
+from whiletrue.core.outcomes import (
+    ItemState,
+    OutcomePolicy,
+    is_outcome_port,
+    item_state_for,
+    transition,
+)
 from whiletrue.core.registry import Registry
 from whiletrue.core.store import ItemRecord, RunStatus, StateStore
 from whiletrue.core.template import render_deep
+from whiletrue.core.workspace import Workspace, resolve_workspace, workspace_spec
 
 
 @dataclass
@@ -112,10 +120,13 @@ async def run_pipeline(
     watch: bool | None = None,
     #: The first run of a chain of resumes; a gate's parks belong to it. Defaults to this run.
     lineage: str | None = None,
+    #: How many items run at once; defaults to the pipeline's `parallel` (1).
+    parallel: int | None = None,
 ) -> RunResult:
-    """Sequential scheduler: runs each item through the module tree and persists every step.
+    """Runs each item through the module tree and persists every step.
 
-    (Parallel item-token scheduling replaces the item loop in a later milestone.)
+    Items are tokens: up to `parallel` run at once, an item waits for the items it depends on, and
+    a parked or waiting item holds no slot beyond its own while the others continue.
     """
     bus = bus if bus is not None else EventBus()
     run_id = run_id if run_id is not None else str(uuid.uuid4())
@@ -127,6 +138,8 @@ async def run_pipeline(
     watching = config.on_idle == "watch" if watch is None else watch
     lineage = lineage if lineage is not None else run_id
     locks = Locks()
+    slots = asyncio.Semaphore(max(1, parallel if parallel is not None else config.parallel))
+    agent_slots = asyncio.Semaphore(config.max_agents) if config.max_agents else None
 
     pipeline_hash = hash_pipeline(config)
     store.create_run(id=run_id, pipeline_hash=pipeline_hash, started_at=now(), lockfile=lockfile)
@@ -141,7 +154,6 @@ async def run_pipeline(
     )
 
     attempts: dict[str, int] = {}
-    outcomes: list[ItemOutcome] = []
 
     for item in items:
         store.upsert_item(
@@ -156,19 +168,18 @@ async def run_pipeline(
         )
 
     finished: dict[str, ItemState] = {}
-    for item in _in_dependency_order(items):
-        blocked_by = [d for d in item.depends_on if finished.get(d) != "done"]
-        if blocked_by:
-            finished[item.id] = "pending"
-            store.set_item_state(run_id, item.id, "pending")
-            bus.emit(
-                "item.state",
-                run_id,
-                {"state": "pending", "blocked_by": blocked_by},
-                item_id=item.id,
-            )
-            outcomes.append(ItemOutcome(item.id, "pending", "skip", {"blocked_by": blocked_by}))
-            continue
+    cycle_ids = {i for cycle in find_dependency_cycles(items) for i in cycle}
+    results: dict[str, ItemOutcome] = {}
+
+    def block(item: RunItem, blocked_by: list[str]) -> None:
+        finished[item.id] = "pending"
+        store.set_item_state(run_id, item.id, "pending")
+        bus.emit(
+            "item.state", run_id, {"state": "pending", "blocked_by": blocked_by}, item_id=item.id
+        )
+        results[item.id] = ItemOutcome(item.id, "pending", "skip", {"blocked_by": blocked_by})
+
+    async def run_item(item: RunItem) -> None:
         item_scope = Scope()
         item_scope.set("run", {"id": run_id})
         #: Agent session ids shared across this item's steps (`session: item` or a name).
@@ -179,9 +190,18 @@ async def run_pipeline(
             fields = {str(k): v for k, v in cast(dict[Any, Any], raw_payload).items()}
         item_scope.set("item", {"id": item.id, **fields})
 
+        current: list[ItemState] = ["ready"]
+        cwd_cell = [cwd]
+        workspace: Workspace | None = None
+
         def set_state(state: ItemState, item_id: str = item.id) -> None:
+            current[0] = transition(current[0], state)
             store.set_item_state(run_id, item_id, state)
             bus.emit("item.state", run_id, {"state": state}, item_id=item_id)
+
+        def cancelled_in_store(item_id: str = item.id) -> bool:
+            record = store.get_item(run_id, item_id)
+            return record is not None and record.state == "cancelled"
 
         async def execute(
             node: PipelineNode,
@@ -241,7 +261,7 @@ async def run_pipeline(
             def fail(message: str) -> Emit:
                 return finish(Emit("fail", {"error": message}), message)
 
-            if signal.aborted:
+            if signal.aborted or cancelled_in_store():
                 return fail("cancelled")
             if resolved is None:
                 return fail(f'Unknown module "{node.use}"')
@@ -259,7 +279,7 @@ async def run_pipeline(
                     "item_id": item_id,
                     "node_id": node.id,
                     "attempt": attempt,
-                    "cwd": cwd,
+                    "cwd": cwd_cell[0],
                     "scope": scope,
                     "registry": registry,
                     "bus": bus,
@@ -272,6 +292,7 @@ async def run_pipeline(
                     "watch": watching,
                     "lineage": lineage,
                     "locks": locks,
+                    "agent_slots": agent_slots,
                 }
                 if resolved.kind == "action":
                     cache_key = (
@@ -328,8 +349,13 @@ async def run_pipeline(
                 else:
                     step_ctx = create_step_context(parsed, **base)
 
-                    async def run_child(child: PipelineNode, child_input: PortValues) -> Emit:
-                        return await execute(child, child_input, scope)
+                    async def run_child(
+                        child: PipelineNode,
+                        child_input: PortValues,
+                        child_scope: Scope | None = None,
+                        /,
+                    ) -> Emit:
+                        return await execute(child, child_input, child_scope or scope)
 
                     ctx = CompositeContext(
                         config=step_ctx.config,
@@ -350,6 +376,7 @@ async def run_pipeline(
                         watch=watching,
                         lineage=lineage,
                         locks=locks,
+                        agent_slots=agent_slots,
                         policy=policy,
                         run=run_child,
                     )
@@ -364,18 +391,61 @@ async def run_pipeline(
                     log("warn", f"Failed to release resources for {node.id}: {error}", None)
 
         set_state("running")
-        emit = await execute(config.root, {}, item_scope)
+        try:
+            provider = resolve_workspace(registry, config.extra)
+            spec = workspace_spec(config.extra)
+            if provider is not None and spec is not None:
+                workspace = await provider.create(
+                    render_deep(spec[1], item_scope.snapshot()), item_scope.get("item"), cwd
+                )
+                cwd_cell[0] = workspace.path
+                bus.emit(
+                    "workspace.created",
+                    run_id,
+                    {"kind": spec[0], "path": workspace.path},
+                    item_id=item.id,
+                )
+            emit = await execute(config.root, {}, item_scope)
+        except Exception as error:
+            emit = Emit("fail", {"error": f"workspace: {error}"})
         await item_scope.dispose()
-        if signal.aborted:
+        if signal.aborted or cancelled_in_store():
             state: ItemState = "cancelled"
         elif is_outcome_port(emit.port):
             state = item_state_for(emit.port, config.on_fail)
         else:
             state = "done"
         set_state(state)
+        if workspace is not None:
+            try:
+                await workspace.release(state)
+                bus.emit("workspace.released", run_id, {"state": state}, item_id=item.id)
+            except Exception as error:
+                log("warn", f"Failed to release the workspace of {item.id}: {error}", None)
         finished[item.id] = state
-        outcomes.append(ItemOutcome(item.id, state, emit.port, emit.value))
+        results[item.id] = ItemOutcome(item.id, state, emit.port, emit.value)
 
+    done_events = {i.id: asyncio.Event() for i in items}
+
+    async def worker(item: RunItem) -> None:
+        try:
+            if item.id in cycle_ids:
+                block(item, ["dependency cycle"])
+                return
+            for dep in item.depends_on:
+                if dep in done_events:
+                    await done_events[dep].wait()
+            blocked_by = [d for d in item.depends_on if finished.get(d) != "done"]
+            if blocked_by:
+                block(item, blocked_by)
+                return
+            async with slots:
+                await run_item(item)
+        finally:
+            done_events[item.id].set()
+
+    await asyncio.gather(*(worker(i) for i in items))
+    outcomes = [results[i.id] for i in items]
     states = {o.state for o in outcomes}
     status: RunStatus = (
         "cancelled"
@@ -424,24 +494,42 @@ async def _run_action(
     return emit
 
 
-def _in_dependency_order(items: list[RunItem]) -> list[RunItem]:
-    """Items in input order, except that each comes after the items it depends on."""
-    by_id = {i.id: i for i in items}
-    ordered: list[RunItem] = []
-    placed: set[str] = set()
+def find_dependency_cycles(items: list[RunItem]) -> list[list[str]]:
+    """Groups of items that wait on each other (including an item waiting on itself)."""
+    graph = {i.id: [d for d in i.depends_on if d in {x.id for x in items}] for i in items}
+    index: dict[str, int] = {}
+    low: dict[str, int] = {}
+    stack: list[str] = []
+    on_stack: set[str] = set()
+    cycles: list[list[str]] = []
+    counter = [0]
 
-    def place(item: RunItem, trail: tuple[str, ...]) -> None:
-        if item.id in placed or item.id in trail:
-            return
-        for dep in item.depends_on:
-            if dep in by_id:
-                place(by_id[dep], (*trail, item.id))
-        placed.add(item.id)
-        ordered.append(item)
+    def visit(node: str) -> None:
+        index[node] = low[node] = counter[0]
+        counter[0] += 1
+        stack.append(node)
+        on_stack.add(node)
+        for dep in graph[node]:
+            if dep not in index:
+                visit(dep)
+                low[node] = min(low[node], low[dep])
+            elif dep in on_stack:
+                low[node] = min(low[node], index[dep])
+        if low[node] == index[node]:
+            group: list[str] = []
+            while True:
+                member = stack.pop()
+                on_stack.discard(member)
+                group.append(member)
+                if member == node:
+                    break
+            if len(group) > 1 or node in graph[node]:
+                cycles.append(sorted(group))
 
     for item in items:
-        place(item, ())
-    return ordered
+        if item.id not in index:
+            visit(item.id)
+    return sorted(cycles)
 
 
 def _validation_summary(error: ValueError) -> str:

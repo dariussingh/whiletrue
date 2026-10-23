@@ -102,7 +102,28 @@ A **human gate** parks an item until a person decides, without stopping other wo
 - **Every comment gets an answer.** A comment (`whiletrue comment <item> "..."`, or a GitHub review comment) wakes the gate's `do:` steps. `recipe:review-respond` has your responder agent classify each comment, make changes, return one reply per comment (`outputs: { replies: CommentReplies }`), runs your tests, posts each reply in its own thread prefixed `[whiletrue]` (once only), and fails while any comment is unanswered. Agents never resolve a human's thread.
 - **Wake conditions.** `cli` always works. Others: `file_exists: path`, `timer: 10m`, `github.pr_review: approved | changes_requested | any`, `github.pr_merged`, or one your plugin registers. `any` fires on the first, `all` needs every one.
 - **Audit trail.** `whiletrue history <item>` prints one timeline of parks, decisions (who, when, note), comments, replies and steers. `context.history` feeds the same history to an agent; `history.distill` proposes lessons from rejections and steers, and nothing reaches an agent until you approve it with `whiletrue learnings approve <id>`.
-- **The control panel.** In tmux, window 0 is `whiletrue panel`: every item with its state, step, what it waits for, cost and age; `j/k` move, `a` approve, `r` reject (asks for a note), `f` jumps to the item's pane.
+- **The control panel.** In tmux, window 0 is `whiletrue panel`: every item with its state, step, what it waits for, cost and age; `j/k` move, `a` approve, `r` reject (asks for a note), `c` cancel, `f` jumps to the item's pane.
+
+## Many items at once
+
+`source:` makes one item per task; `parallel: N` runs up to N at once and `max_agents: M` caps live agent sessions across all of them. An item waits for the items in its `depends_on` (a failed or parked blocker keeps its dependents `pending`; `status` says what blocks them). Dependency cycles are rejected by `plan` and `run`.
+
+```yaml
+parallel: 4
+max_agents: 4
+source: { markdown_tasks: { path: TASKS.md } }   # or json: { path }, or github_issues
+workspace: { git-worktree: { branch: "wt/{{item.id}}" } }   # each item gets its own checkout
+pipeline: [ ... ]
+```
+
+- **Sources.** `markdown_tasks` turns unchecked `- [ ] Title {#id after=a,b}` lines into items (checked lines are done). On `resume` the source wins: tasks removed or ticked off are dropped, new ones are added.
+- **Workspaces.** `git-worktree` (a worktree and branch per item under `.whiletrue/worktrees/`; kept while the item is parked, removed when it is done, the branch stays), `dir-copy` (a copy of the project) or `none` (share the project). Steps run inside the item's workspace.
+- **Git steps.** `git.commit` (stages and commits if anything changed), `git.commit_push` (also pushes), `git.diff` (changed files, optionally the patch).
+- **A watching gate keeps its slot.** With `on_idle: watch` an item waiting at a gate still counts against `parallel`; set it higher than the number of items you expect to wait, or use `on_idle: exit` and `resume`.
+
+## When a run dies
+
+Kill the process (or lose the machine) mid-run and the next `whiletrue resume` notices the run was left `running` with nobody holding `.whiletrue/run.lock`, marks what was in flight as interrupted, replays every step that finished (nothing runs twice) and runs the interrupted steps again. An agent step restarts from scratch (its pane is gone). `whiletrue rerun <item> [--from <step>]` runs one item again as a new run, replaying its steps before `--from`; `whiletrue cancel <item>` stops an item (a running one stops before its next step; a parked one is closed and recorded as cancelled). `whiletrue logs <item> [--follow]` prints its events and `whiletrue cost [run]` breaks spend down by item, step and runner. Only one run changes a project at a time.
 
 ## GitHub issues, one by one
 
@@ -117,7 +138,7 @@ pipeline:
       params: { implementer: ./agents/implement.md, fixer: ./agents/fix.md, responder: ./agents/respond.md }
 ```
 
-It branches `wt/<n>`, implements with retries behind your `gate`, opens (or reuses) the PR, parks at a review gate that answers comments and routes rejections to the fixer, rebases onto `main` (a conflict parks the item), asks for a final approval, and merges under the lock `repo:main`. Opening the PR, replying to a comment and merging are recorded in an effect journal, so a resume never repeats them. Items run one after another today, and a parked item holds the run until you decide (parallel items are milestone 3).
+It branches `wt/<n>`, implements with retries behind your `gate`, opens (or reuses) the PR, parks at a review gate that answers comments and routes rejections to the fixer, rebases onto `main` (a conflict parks the item), asks for a final approval, and merges under the lock `repo:main`. Opening the PR, replying to a comment and merging are recorded in an effect journal, so a resume never repeats them. Set `parallel` to work several issues at once, each in its own worktree.
 
 ## Commands
 
@@ -131,7 +152,11 @@ It branches `wt/<n>`, implements with retries behind your `gate`, opens (or reus
 | `whiletrue replay [run]` | Re-run a recorded run's logic without calling agents or tools |
 | `whiletrue lock` | Pin the plugin versions in use to `whiletrue.lock` |
 | `whiletrue attach` | Attach to the project's tmux session (live agent panes) |
-| `whiletrue resume [run]` | Continue a parked run: recorded steps are replayed, decided gates let their item through |
+| `whiletrue resume [run]` | Continue a parked run, or recover one whose process died: recorded steps are replayed, decided gates let their item through, the source is re-read |
+| `whiletrue rerun <item> [--from step]` | Run one item again as a new run |
+| `whiletrue cancel <item>` | Cancel an item |
+| `whiletrue logs <item> [--follow]` | The item's event log |
+| `whiletrue cost [run]` | Spend by item, step and runner |
 | `whiletrue approve <item> [--note] [--step id]` | Approve the gate the item is parked at |
 | `whiletrue reject <item> --note "..."` | Reject it; the note goes to the gate's `rejected` route |
 | `whiletrue comment <item> "text"` | Leave a comment the pipeline must answer |

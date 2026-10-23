@@ -102,6 +102,17 @@ class SqliteStore:
             ended_at=row["ended_at"],
         )
 
+    def interrupt_run(self, id: str, ended_at: int) -> None:
+        self._db.execute(
+            "UPDATE steps SET status = 'errored', error = 'interrupted', ended_at = ? "
+            "WHERE run_id = ? AND status = 'running'",
+            (ended_at, id),
+        )
+        self._db.execute(
+            "UPDATE items SET state = 'parked' WHERE run_id = ? AND state = 'running'", (id,)
+        )
+        self.finish_run(id, "parked", ended_at)
+
     def get_run(self, id: str) -> RunRecord | None:
         return self._run(self._db.execute("SELECT * FROM runs WHERE id = ?", (id,)).fetchone())
 
@@ -137,6 +148,9 @@ class SqliteStore:
         )
         if cursor.rowcount == 0:
             raise KeyError(f'No item "{item_id}" in run "{run_id}"')
+
+    def get_item(self, run_id: str, item_id: str) -> ItemRecord | None:
+        return next((i for i in self.list_items(run_id) if i.id == item_id), None)
 
     def list_items(self, run_id: str) -> list[ItemRecord]:
         rows = self._db.execute(

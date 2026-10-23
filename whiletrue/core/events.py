@@ -16,6 +16,8 @@ EventType = Literal[
     "step.error",
     "step.cached",
     "step.journaled",
+    "workspace.created",
+    "workspace.released",
     "park.created",
     "park.decided",
     "comment.added",

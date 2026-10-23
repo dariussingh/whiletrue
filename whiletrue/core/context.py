@@ -137,6 +137,16 @@ class StepContext[Cfg]:
     #: Parks created by this chain of resumed runs belong to this id.
     lineage: str = ""
     locks: Locks = field(default_factory=Locks)
+    #: Caps live agent sessions across the run; agents acquire it around their runner call.
+    agent_slots: asyncio.Semaphore | None = None
+
+
+class RunChild(Protocol):
+    """Runs a child step; `scope` overrides the scope it runs in (a per-pass scope for `map`)."""
+
+    def __call__(
+        self, node: PipelineNode, input: PortValues, scope: Scope | None = None, /
+    ) -> Awaitable[Emit]: ...
 
 
 @dataclass(kw_only=True)
@@ -144,7 +154,7 @@ class CompositeContext[Cfg](StepContext[Cfg]):
     """Everything a strategy can see. Children run only through `run`, so each is recorded."""
 
     policy: OutcomePolicy
-    run: Callable[[PipelineNode, PortValues], Awaitable[Emit]] = field(init=True)
+    run: RunChild = field(init=True)
 
 
 def create_step_context[Cfg](config: Cfg, **overrides: Any) -> StepContext[Cfg]:

@@ -53,3 +53,30 @@ def resolve_outcome(port: str, wires: dict[str, str], policy: OutcomePolicy) -> 
     if policy.on_fail == "propagate":
         return Resolution("propagate", port=port)
     return Resolution("exit", port=port, state=item_state_for(port, policy.on_fail))
+
+
+class InvalidTransition(Exception):
+    pass
+
+
+#: Where an item may go next. `done` is final; `failed` and `cancelled` can be rerun.
+_TRANSITIONS: dict[ItemState, frozenset[ItemState]] = {
+    "pending": frozenset({"ready", "cancelled"}),
+    "ready": frozenset({"running", "pending", "cancelled"}),
+    "running": frozenset({"parked", "done", "failed", "cancelled"}),
+    "parked": frozenset({"running", "ready", "cancelled"}),
+    "done": frozenset(),
+    "failed": frozenset({"ready", "cancelled"}),
+    "cancelled": frozenset({"ready"}),
+}
+
+
+def can_transition(old: ItemState, new: ItemState) -> bool:
+    return new in _TRANSITIONS[old]
+
+
+def transition(old: ItemState, new: ItemState) -> ItemState:
+    """`new` if the move is allowed, else InvalidTransition."""
+    if not can_transition(old, new):
+        raise InvalidTransition(f"Invalid item transition {old} -> {new}")
+    return new

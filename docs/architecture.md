@@ -445,7 +445,7 @@ One Python distribution, `whiletrue`, published to PyPI. Each row below is a sub
 - `agents/*.md` and `loops/*.yaml` hold the project's agent modules and composites.
 - `.whiletrue/` holds `state.db`, logs and session transcripts. It is git-ignored.
 
-## Implementation status (M0, M1, M2 and M4)
+## Implementation status (M0 to M4)
 
 Built and tested; user-facing detail is in [reference.md](reference.md), extension API in [plugins.md](plugins.md).
 
@@ -479,7 +479,6 @@ Built and tested; user-facing detail is in [reference.md](reference.md), extensi
 
 **Human gates, GitHub and review (M4).** Built as designed, with these specifics:
 
-- *Not parallel yet.* M4 was built before M3, so the pieces of M3 it needs exist (items ordered by `depends_on`, the `json` source, named locks, the effect journal, `resume`) but not the parallel scheduler, worktrees, crash recovery, `rerun` or `cancel`. A parked or watching gate holds the run's other items.
 - *Park and resume.* A parked gate is a row in `parks` (keyed by item, so it can be decided from another process). `resume` is a replay that continues: `run_pipeline(replay=..., resume=True, lineage=...)` serves recorded results for every non-`pure` action except steps that fired `needs_human`, runs anything with no recording for real, and creates a new run in the same lineage. The Nth execution of a gate in a lineage uses the Nth park, which makes replays deterministic and gives a loop one park per pass. Children of a gate run with replay off (`scope no_replay`) so new comments always get live answers.
 - *Side effects.* `ActionModule.journal` records a result under an effect key (`github.open_pr:o/r:wt/12`, `github.merge:o/r:1`, `reply:<item>:<source>:<comment>`); a repeat returns the recorded result. A `started` effect with no `done` (a crash mid-post) is not repeated.
 - *Comments.* `CommentsProvider`s (`github_pr`, plus local ones in the store) feed `comments` rows, unique per (item, source, external id) and flagged answered once a reply is posted. `[whiletrue]` prefixes every reply, replies are journaled, and no provider can resolve a thread. `review-respond` is the "collect, classify, act, reply, check" loop: the gate collects, the responder agent classifies and acts, `comments.reply` posts, `gate.comments_answered` verifies. Out-of-scope comments are answered with a proposed follow-up in the reply text; creating the issue is left to the person.
@@ -489,6 +488,14 @@ Built and tested; user-facing detail is in [reference.md](reference.md), extensi
 - *History.* `context.history` renders an item's decisions, comments, replies and steers (and approved lessons); `history.distill` proposes lessons from rejections and steers for `whiletrue learnings approve`. Distillation is rule-based today, not an agent.  Steers typed into interactive sessions are written to `steers` as they happen.
 - *opencode.* `opencode run --format json`, structured output requested in the prompt and checked against the cap, no budget enforcement; with tmux its stream is mirrored to a read-only pane.
 - *Control panel.* `whiletrue panel` runs in tmux window 0: items, state, step, who they wait for, cost, age; approve, reject and focus work, rerun and cancel wait for M3.
+
+**Parallel items, workspaces and recovery (M3).**
+
+- *Scheduler.* `run_pipeline` starts one task per item; an item waits on events for its `depends_on` ids, then takes one of `parallel` slots (`asyncio.Semaphore`). A dependency that is missing, failed, parked or part of a cycle (Tarjan SCC, `find_dependency_cycles`) leaves the item `pending` with `blocked_by` recorded. `max_agents` is a second semaphore the `agent` action acquires around the runner call. Item states follow the table in `core/outcomes.py` (`transition()` rejects illegal moves); a state of `cancelled` written to the store by `cancel` is seen before each step. A gate waiting in `on_idle: watch` keeps its slot (a parked item under `exit` frees it).
+- *Workspaces.* A `workspace` provider is created per item (templates see the item) and its path becomes the `cwd` of every step; it is released with the item's final state. `git-worktree` runs `git worktree add -B <branch> .whiletrue/worktrees/<id>` and reuses an existing worktree, so resume continues in place.
+- *Crash recovery (OQ-3, OQ-4).* A run holds an `flock` on `.whiletrue/run.lock` while its process lives. `resume` that finds the latest run `running` and gets the lock knows the process died: `StateStore.interrupt_run` marks in-flight steps `errored: interrupted`, running items parked and the run parked; recorded results are replayed and the rest run for real. Decision: an interrupted agent step is **re-run from scratch**, not re-attached (the pane died with the process). Journaled effects that were `started` but not `done` are retried, so a journaled module must look before it acts (`github.open_pr` finds an existing PR; `github.merge` checks the PR state; `comments.reply` skips a started reply rather than risk a duplicate).
+- *Resume and sources.* `resume` re-reads the source: the source wins, so items it no longer lists are dropped and its latest payloads are used; new items start fresh. `rerun <item> --from <step>` runs one item as a new run (new lineage, blockers assumed done) replaying the recorded steps before `<step>`.
+- *Operations.* `cancel` closes an item's undecided parks as rejected by `cancel` and sets it `cancelled`; `logs` prints (and follows) an item's events; `cost` groups step spend by item, step and runner (the agent action records its runner as an event).
 
 ## Milestones to v0.1 and open questions
 

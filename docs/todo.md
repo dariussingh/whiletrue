@@ -53,7 +53,7 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 34. [x] `whiletrue.recipes`: `ralph`, `review-pass`.
 35. [x] **M1 exit:** `ralph` and `review-pass` recipes run; replay reproduces a recorded run.
 
-## Phase M2 · Interactive Claude Code _(parallel with M3)_
+## Phase M2 · Interactive Claude Code
 
 36. [x] **Spike:** throwaway `--plugin-dir` plugin with hooks + MCP server in an interactive session, including `Stop` nudge loop. Record findings in `docs/`. (OQ-1)
 37. [x] `whiletrue.tmux`: create session, windows, panes, titles, grid layout (4 panes/window), `on_done: close|keep`, `whiletrue attach`.
@@ -67,23 +67,22 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 45. [x] Validator rejects steps requesting features their runner lacks.
 46. [x] **M2 exit:** one issue completed in a live tmux pane with typed result submitted.
 
-## Phase M3 · Parallel items & DAG _(parallel with M2)_
+## Phase M3 · Parallel items & DAG
 
-47. [ ] Item model + lifecycle state machine (`pending, ready, running, parked, done, failed, cancelled`). _(partly: states exist and are persisted; no enforced state machine)_
-48. [ ] Dependency graph (`depends_on`), cycle rejection at plan time, status view explains blocked dependents. _(partly: `depends_on` ordering and blocked items work; no cycle rejection at plan time, status does not explain blockers)_
-49. [ ] Item-token scheduler with free-slot accounting; `map.parallel: N`; global `max_agents`.
-50. [ ] Providers: sources `json`, `markdown_tasks`; source-wins re-sync at start, resume, and before `ready`. _(partly: `json` source and `github_issues` done; `markdown_tasks` and source-wins re-sync not)_
-51. [ ] Scoped resources (workspaces, sessions, panes) released on scope exit. _(mostly: scopes release resources on exit; worktrees/panes not yet scoped by M3 modules)_
-52. [ ] `whiletrue.git`: `git-worktree` workspace, `git.commit`, `git.commit_push`, diff; `dir-copy` and `none` workspaces.
-53. [ ] Resource locks (e.g. `repo:main`). _(done in-process: `ctx.locks`; not durable across processes)_
-54. [ ] Side-effect journal with idempotency keys (skip-and-reuse / look-up-first). _(done: `journal: true` effects)_
-55. [ ] Crash recovery: re-sync, recover `running` steps; decide re-attach vs `--resume`. (OQ-3, OQ-4)
-56. [ ] CLI: `resume`, `rerun <item> --from <step>`, `cancel`, `logs [--follow]`, `cost`. _(partly: `resume` done; `rerun`, `cancel`, `logs`, `cost` not)_
-57. [ ] **M3 exit:** 4 JSON tasks run in parallel in separate worktrees; killing the process mid-run and resuming completes without duplicate effects.
+47. [x] Item model + lifecycle state machine (`pending, ready, running, parked, done, failed, cancelled`).
+48. [x] Dependency graph (`depends_on`), cycle rejection at plan time, status view explains blocked dependents.
+49. [x] Item-token scheduler with free-slot accounting; `map.parallel: N`; global `max_agents`.
+50. [x] Providers: sources `json`, `markdown_tasks`; source-wins re-sync at start, resume, and before `ready`.
+51. [x] Scoped resources (workspaces, sessions, panes) released on scope exit.
+52. [x] `whiletrue.git`: `git-worktree` workspace, `git.commit`, `git.commit_push`, diff; `dir-copy` and `none` workspaces.
+53. [x] Resource locks (e.g. `repo:main`).
+54. [x] Side-effect journal with idempotency keys (skip-and-reuse / look-up-first).
+55. [x] Crash recovery: re-sync, recover `running` steps; decide re-attach vs `--resume`. (OQ-3, OQ-4)
+56. [x] CLI: `resume`, `rerun <item> --from <step>`, `cancel`, `logs [--follow]`, `cost`.
+57. [x] **M3 exit:** 4 JSON tasks run in parallel in separate worktrees; killing the process mid-run and resuming completes without duplicate effects.
 
-## Phase M4 · GitHub, human gates, review _(needs M2 + M3)_
+## Phase M4 · GitHub, human gates, review
 
-> Built before M3 was finished, so the parts of M3 it depends on exist: items ordered by `depends_on` (blocked items wait; no cycle rejection yet), the `json` source, named locks, the journal for side effects (`journal: true`) and `whiletrue resume`. Still M3: the parallel item scheduler (`map.parallel`, `max_agents`), git worktrees and `git.*` modules, `markdown_tasks`, crash recovery, `rerun`, `cancel`, `logs`, `cost`. A watching or parked gate therefore blocks the run's other items.
 
 58. [x] `whiletrue.github`: `github_issues` source (milestone filter, blocked-by → `depends_on`), spec-link parsing. (OQ-5)
 59. [x] `github.open_pr` (journaled), `github.sync_base` (rebase, conflict → park), `github.merge` (with lock).

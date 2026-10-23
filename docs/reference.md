@@ -10,20 +10,28 @@ uses: [my_plugin]          # extra plugins (entry point group `whiletrue.plugins
 on_fail: park              # park | drop | propagate (what an unwired `fail` does)
 cache: true                # cache pure/deterministic results by input hash (default true)
 on_idle: exit              # exit | watch: what gates do (park the item, or wait for a decision)
+parallel: 1                # items run at once
+max_agents: 4              # optional cap on live agent sessions across the run
+workspace: { git-worktree: { branch: "wt/{{item.id}}" } }   # optional: a directory per item
 source:                    # optional: where items come from (default: one implicit item)
   json: { path: items.json }
 pipeline:                  # one step, or a list (an implicit `sequence`)
   - shell: { run: "make build" }
 ```
 
-### Sources
+### Sources and workspaces
 
 `source: { <name>: {...} }` turns the pipeline into one run per item (`{{item.*}}` in templates). Items with `depends_on` wait until those items are `done`; a blocked item stays `pending` and the run ends `parked`.
 
 | Source | Config | Items |
 | --- | --- | --- |
 | `json` | `path` | A JSON list of objects with an `id`, other fields, and optional `depends_on` |
+| `markdown_tasks` | `path` | Unchecked `- [ ] Title {#id after=a,b}` lines; id defaults to a slug of the title |
 | `github_issues` | `repo` (default: from `origin`), `milestone`, `state` (`open`), `labels`, `depends_on` (`blocked_by`) | Open issues: `id` and `number` are the issue number; payload has `title`, `body`, `labels`, `url`, `repo`, `spec_refs`. Blockers outside the fetched set are ignored |
+
+**Workspaces** (`workspace: {name: config}`; templates see `{{item.*}}`) set the directory an item's steps run in: `git-worktree` (`branch`, `base` (HEAD), `dir`), `dir-copy` (`dir`, `skip_git`), `none`. An existing workspace is reused on resume; it is removed when its item is `done`.
+
+Items move `pending -> ready -> running -> parked | done | failed | cancelled`; `done` is final and `failed` and `cancelled` can be rerun.
 
 Spec links: a line `spec: path/to/file.md#L40-L88` in an issue body (`specs:` and several links per line also work) becomes `item.spec_refs`.
 
@@ -48,6 +56,9 @@ A step has exactly one module key (`shell: {...}`), plus optional `id:`, `wires:
 | `github.open_pr` | side-effect, journaled | Push `head` (unless `push: false`), find or create the PR; outputs `PullRequest` (`number`, `url`, `branch`, `base`, `title`, `repo`). Config: `repo`, `head`, `base`, `title`, `body`, `closes` |
 | `github.sync_base` | side-effect | `git fetch` + rebase onto `origin/<base>`, force-push if it changed; a conflict aborts the rebase and parks with the conflicting files |
 | `github.merge` | side-effect, journaled | Merge the PR from the input (or `number`) with `method` (`squash`), holding `lock` if set; an already merged PR is fine |
+| `git.commit` | side-effect | Stage `add` (default `.`) and commit `message` if anything changed; outputs `{committed, sha}` |
+| `git.commit_push` | side-effect | `git.commit`, then push `HEAD` to `remote` (`origin`) |
+| `git.diff` | deterministic | Changed files against `base` (`HEAD`) as a `Diff`; `patch: true` adds the diff text |
 | `session.end` | deterministic | Close the shared agent session `name` (default `item`); the input passes through |
 | `context.reset` | deterministic | Close every shared agent session of the item; the input passes through |
 
@@ -93,7 +104,7 @@ Children go under `do:`. Each child's `out` feeds the next child's `in`.
 | `sequence` | | Run children in order; stop at the first `fail` / `needs_human` / `rejected` |
 | `tap` | | Like `sequence`, then pass its own input through unchanged (a side branch such as a fix) |
 | `loop` | `max` (or `unbounded`), `until`, `over`, `collect`, `stop_when` | Repeat the children. Stops on first `ok` by default (Ralph). `until` is a CEL condition; `over` iterates a CEL list; `collect: true` returns every result. Needs `max` or `over` |
-| `map` | `over` | Run the children once per list element, return the list; the first non-`ok` stops it |
+| `map` | `over`, `parallel` (1) | Run the children once per list element (`parallel` at once, each pass with its own `iter`), return the list in element order; the first non-`ok` stops it |
 | `parallel` | | Run children at once on the same input; return the list, or the first non-`ok` in child order |
 | `switch` | `on`, `cases`, `default` | Run the one child whose id `cases` maps the value of `on` to; no match and no default fires `skip` |
 | `retry` | `max` (3), `backoff`, `factor`, `feedback`, `on_exhausted` | Re-run on `fail`; exhausted attempts park the item as `needs_human` (or `fail`) |

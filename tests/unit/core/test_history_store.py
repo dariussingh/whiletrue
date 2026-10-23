@@ -128,3 +128,28 @@ def test_learnings_have_a_review_status(store: StateStore) -> None:
     assert len(store.list_learnings(status="approved")) == 2
     with pytest.raises(KeyError):
         store.set_learning_status(99, "rejected")
+
+
+def test_interrupting_a_run_parks_what_was_in_flight(store: StateStore) -> None:
+    from whiletrue.core import ItemRecord
+
+    store.upsert_item(ItemRecord("a", "r1", "a", "running"))
+    store.upsert_item(ItemRecord("b", "r1", "b", "done"))
+    running = store.start_step(
+        run_id="r1", item_id="a", node_path="n", attempt=1, input=None, started_at=1
+    )
+    finished = store.start_step(
+        run_id="r1", item_id="b", node_path="n", attempt=1, input=None, started_at=1
+    )
+    store.finish_step(finished, status="completed", port="ok", ended_at=2)
+    store.interrupt_run("r1", 50)
+    steps = {s.id: s for s in store.list_steps("r1")}
+    assert (steps[running].status, steps[running].error, steps[running].ended_at) == (
+        "errored",
+        "interrupted",
+        50,
+    )
+    assert steps[finished].status == "completed"
+    assert {i.id: i.state for i in store.list_items("r1")} == {"a": "parked", "b": "done"}
+    run = store.get_run("r1")
+    assert run is not None and (run.status, run.ended_at) == ("parked", 50)

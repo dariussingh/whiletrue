@@ -436,7 +436,9 @@ class TestLockFile:
             "whiletrue.basics",
             "whiletrue.claude_code",
             "whiletrue.control",
+            "whiletrue.git",
             "whiletrue.github",
+            "whiletrue.opencode",
         }
         assert await cli("validate") == EXIT.ok
 
@@ -546,3 +548,11 @@ class TestAttach:
         assert await cli("attach") == EXIT.failed
         assert "No tmux session 'wt-demo'" in cli.err
         assert cli.attached == []
+
+
+def test_the_default_registry_has_every_runner_and_plugin() -> None:
+    registry = create_default_registry()
+    for runner in ("claude-code-headless", "claude-code", "opencode"):
+        assert registry.get_runner(runner) is not None
+    assert registry.get_provider("workspace", "git-worktree") is not None
+    assert registry.get_provider("source", "github_issues") is not None

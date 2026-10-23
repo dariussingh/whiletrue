@@ -5,12 +5,13 @@ import json
 import os
 import signal as signal_module
 import sys
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from whiletrue.abort import AbortSignal
-from whiletrue.cli import gates
+from whiletrue.cli import gates, ops
 from whiletrue.cli.common import EXIT, Io
 from whiletrue.cli.registry import RegistryOptions, create_default_registry, load_plugins
 from whiletrue.cli.templates import RALPH_AGENT, RALPH_PIPELINE
@@ -23,7 +24,6 @@ from whiletrue.core import (
     Registry,
     ReplayError,
     check_lock,
-    fetch_items,
     format_diagnostic,
     has_errors,
     hash_pipeline,
@@ -56,6 +56,10 @@ Commands:
   approve <item>    Approve the gate an item is parked at   [--note, --step]
   reject <item>     Reject it with a reason                 --note "what to change"
   comment <item> "text"   Leave a comment the pipeline must answer
+  rerun <item>      Run one item again as a new run                [--from <step>]
+  cancel <item>     Cancel an item (a running one stops before its next step)
+  logs <item>       The item's event log                            [--follow]
+  cost [run]        Spend by item, step and runner
   history <item>    The item's timeline: parks, decisions, comments, replies, steers
   learnings [approve|reject <id>]   Review lessons proposed by history.distill
 
@@ -144,13 +148,7 @@ def _init(io: Io, force: bool) -> int:
     return EXIT.ok
 
 
-async def _run(io: Io, file: str) -> int:
-    loaded = _load(io, file)
-    if isinstance(loaded, int):
-        return loaded
-    if not _validated(io, loaded):
-        return EXIT.failed
-
+async def _run_loaded(io: Io, loaded: _Loaded) -> int:
     store = SqliteStore(Path(loaded.cwd) / ".whiletrue" / "state.db")
 
     def log(level: str, message: str, data: object = None) -> None:
@@ -159,9 +157,13 @@ async def _run(io: Io, file: str) -> int:
 
     try:
         try:
-            items = await fetch_items(loaded.registry, loaded.config.extra, loaded.cwd)
+            items = await ops.source_items(loaded)
         except Exception as error:
             io.err(f"Cannot fetch items: {error}\n")
+            return EXIT.failed
+        problem = ops.cycle_error(items)
+        if problem is not None:
+            io.err(f"{problem}\n")
             return EXIT.failed
         result = await run_pipeline(
             registry=loaded.registry,
@@ -251,58 +253,50 @@ async def _attach(io: Io) -> int:
     return EXIT.ok
 
 
-async def _resume(io: Io, file: str, run_id: str | None) -> int:
-    """Continues a parked run: recorded steps are replayed, the rest run for real."""
-    db_path = Path(io.cwd) / ".whiletrue" / "state.db"
-    if not db_path.exists():
-        io.err("No runs yet (.whiletrue/state.db not found)\n")
+async def _locked(io: Io, loaded: _Loaded, action: Callable[[], Awaitable[int]]) -> int:
+    """Runs an action that changes a run while holding the project's run lock."""
+    lock = ops.RunLock(loaded.cwd)
+    if not lock.acquire():
+        io.err(f"Another whiletrue run is active in this project (pid {lock.holder()})\n")
         return EXIT.failed
+    try:
+        return await action()
+    finally:
+        lock.release()
+
+
+async def _plan_items(io: Io, loaded: _Loaded) -> int:
+    """With a source, `plan` also lists the items and rejects dependency cycles."""
+    if "source" not in loaded.config.extra:
+        return EXIT.ok
+    try:
+        items = await ops.source_items(loaded)
+    except Exception as error:
+        io.err(f"Cannot fetch items: {error}\n")
+        return EXIT.failed
+    items = items or []
+    io.out(f"items ({len(items)}, up to {loaded.config.parallel} at once):\n")
+    for item in items:
+        waits = f"  after {', '.join(item.depends_on)}" if item.depends_on else ""
+        io.out(f"  {item.id}{waits}\n")
+    problem = ops.cycle_error(items)
+    if problem is not None:
+        io.err(f"{problem}\n")
+        return EXIT.failed
+    return EXIT.ok
+
+
+async def _with_loaded(io: Io, file: str, action: Callable[[_Loaded], Awaitable[int]]) -> int:
     loaded = _load(io, file)
     if isinstance(loaded, int):
         return loaded
     if not _validated(io, loaded):
         return EXIT.failed
-    store = SqliteStore(db_path)
-    try:
-        if run_id is None:
-            latest = store.latest_run()
-            run_id = latest.id if latest else ""
-        try:
-            recording = load_recording(store, run_id)
-        except ReplayError as error:
-            io.err(f"{error}\n")
-            return EXIT.failed
-        if recording.status != "parked":
-            io.err(f"Run {run_id} is {recording.status}, not parked: nothing to resume\n")
-            return EXIT.failed
+    return await action(loaded)
 
-        def log(level: str, message: str, data: object = None) -> None:
-            if level != "debug":
-                io.out(f"[{level}] {message}\n")
 
-        result = await run_pipeline(
-            registry=loaded.registry,
-            config=loaded.config,
-            store=store,
-            cwd=loaded.cwd,
-            signal=io.signal,
-            log=log,
-            lockfile=_lock_hash(loaded.cwd),
-            items=recording.items,
-            replay=recording.steps,
-            resume=True,
-            lineage=recording.lineage,
-        )
-        io.out(f"resumed {recording.run_id} as run {result.run_id}: {result.status}\n")
-        for item in result.items:
-            io.out(f"  {item.item_id}: {item.state} ({item.port})\n")
-        return {
-            "done": EXIT.ok,
-            "parked": EXIT.parked,
-            "cancelled": EXIT.cancelled,
-        }.get(result.status, EXIT.failed)
-    finally:
-        store.close()
+async def _run_locked(io: Io, loaded: _Loaded) -> int:
+    return await _locked(io, loaded, lambda: _run_loaded(io, loaded))
 
 
 async def _panel(io: Io) -> int:  # pragma: no cover (interactive terminal loop)
@@ -358,7 +352,14 @@ def _status(io: Io, run_id: str | None) -> int:
         for item in store.list_items(run.id):
             item_steps = [s for s in steps if s.item_id == item.id]
             cost = sum(s.cost_usd for s in item_steps)
-            io.out(f"  {item.id}  {item.state}  steps={len(item_steps)}  cost=${cost:.4f}\n")
+            blocked = ""
+            if item.state == "pending":
+                states = store.list_events(run.id, item_id=item.id, type="item.state")
+                by = states[-1].data.get("blocked_by") if states else None
+                blocked = f"  — blocked by {', '.join(by)}" if by else ""
+            io.out(
+                f"  {item.id}  {item.state}  steps={len(item_steps)}  cost=${cost:.4f}{blocked}\n"
+            )
             for s in item_steps:
                 port = f"  {s.port}" if s.port else ""
                 error = f"  — {s.error}" if s.error else ""
@@ -384,6 +385,8 @@ class _Args:
     help: bool = False
     note: str | None = None
     step: str | None = None
+    from_step: str | None = None
+    follow: bool = False
 
 
 def _parse_args(argv: list[str]) -> _Args:
@@ -397,6 +400,15 @@ def _parse_args(argv: list[str]) -> _Args:
             args.file = value
         elif arg.startswith("--file="):
             args.file = arg.split("=", 1)[1]
+        elif arg == "--follow":
+            args.follow = True
+        elif arg == "--from":
+            value = next(it, None)
+            if value is None:
+                raise ValueError(f"Option '{arg}' argument missing")
+            args.from_step = value
+        elif arg.startswith("--from="):
+            args.from_step = arg.split("=", 1)[1]
         elif arg in ("-m", "--note", "--step"):
             value = next(it, None)
             if value is None:
@@ -454,9 +466,9 @@ async def main(argv: list[str], io: Io) -> int:
             if not _validated(io, loaded):
                 return EXIT.failed
             io.out(f"{loaded.config.name}\n{chr(10).join(_render_tree(loaded.config.root))}\n")
-            return EXIT.ok
+            return await _plan_items(io, loaded)
         case "run":
-            return await _run(io, args.file)
+            return await _with_loaded(io, args.file, lambda loaded: _run_locked(io, loaded))
         case "replay":
             return await _replay(io, args.file, rest[0] if rest else None)
         case "attach":
@@ -464,7 +476,36 @@ async def main(argv: list[str], io: Io) -> int:
         case "panel":
             return await _panel(io)
         case "resume":
-            return await _resume(io, args.file, rest[0] if rest else None)
+            return await _with_loaded(
+                io,
+                args.file,
+                lambda loaded: _locked(
+                    io,
+                    loaded,
+                    lambda: ops.resume(
+                        io, loaded, rest[0] if rest else None, _lock_hash(loaded.cwd)
+                    ),
+                ),
+            )
+        case "rerun":
+            if not rest:
+                io.err("Usage: whiletrue rerun <item> [--from <step>]\n")
+                return EXIT.usage
+            return await _with_loaded(
+                io,
+                args.file,
+                lambda loaded: _locked(
+                    io,
+                    loaded,
+                    lambda: ops.rerun(io, loaded, rest[0], args.from_step, _lock_hash(loaded.cwd)),
+                ),
+            )
+        case "cancel":
+            return ops.cancel(io, rest[0] if rest else None)
+        case "logs":
+            return await ops.logs(io, rest[0] if rest else None, args.follow)
+        case "cost":
+            return ops.cost(io, rest[0] if rest else None)
         case "approve":
             return gates.decide(io, "approved", rest[0] if rest else None, args.note, args.step)
         case "reject":

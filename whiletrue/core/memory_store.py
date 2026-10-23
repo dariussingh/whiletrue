@@ -56,6 +56,15 @@ class MemoryStore:
         run.status = status
         run.ended_at = ended_at
 
+    def interrupt_run(self, id: str, ended_at: int) -> None:
+        for step in self._steps:
+            if step.run_id == id and step.status == "running":
+                step.status, step.error, step.ended_at = "errored", "interrupted", ended_at
+        for item in self._items:
+            if item.run_id == id and item.state == "running":
+                item.state = "parked"
+        self.finish_run(id, "parked", ended_at)
+
     def get_run(self, id: str) -> RunRecord | None:
         return next((r for r in self._runs if r.id == id), None)
 
@@ -76,6 +85,10 @@ class MemoryStore:
                 item.state = state
                 return
         raise KeyError(f'No item "{item_id}" in run "{run_id}"')
+
+    def get_item(self, run_id: str, item_id: str) -> ItemRecord | None:
+        found = next((i for i in self._items if i.run_id == run_id and i.id == item_id), None)
+        return replace(found) if found else None
 
     def list_items(self, run_id: str) -> list[ItemRecord]:
         return [replace(i) for i in self._items if i.run_id == run_id]

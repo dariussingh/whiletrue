@@ -569,3 +569,63 @@ def test_map_validates_its_expression() -> None:
     assert check("[1]") == []
     assert any("Unknown variable" in m for m in check("zip.x"))
     assert any("syntax" in m for m in check("1 +"))
+
+
+async def test_map_can_run_elements_in_parallel_with_their_own_iter() -> None:
+    import asyncio
+
+    seen: list[Any] = []
+    live = {"now": 0, "max": 0}
+    t = Harness()
+    original = t.registry.resolve("step")
+    assert original is not None
+    module = original.module
+    inner = module.run
+
+    async def slow(input: Any, ctx: Any) -> Emit:
+        live["now"] += 1
+        live["max"] = max(live["max"], live["now"])
+        await asyncio.sleep(0.03)
+        seen.append(ctx.scope.get("iter")["value"])
+        live["now"] -= 1
+        return await inner(input, ctx)
+
+    module.run = slow
+    result = await t.run(
+        "pipeline:\n  map:\n    over: '[1, 2, 3, 4]'\n    parallel: 2\n    do:\n"
+        "      - step: { name: w }\n"
+    )
+    assert result.items[0].state == "done"
+    assert live["max"] == 2
+    assert sorted(seen) == [1, 2, 3, 4]
+    assert len(result.items[0].value) == 4  # results in element order
+
+
+async def test_parallel_map_stops_starting_work_after_a_failure() -> None:
+    t = Harness()
+    t.scripts["w"] = [Emit("fail", {"error": "first one fails"})]
+    result = await t.run(
+        "pipeline:\n  map:\n    over: '[1, 2, 3]'\n    parallel: 1\n    do:\n"
+        "      - step: { name: w }\n"
+    )
+    assert (result.items[0].port, result.items[0].value) == ("fail", {"error": "first one fails"})
+    parallel = Harness()
+    parallel.scripts["w"] = [Emit("fail", {"error": "boom"})]
+    result = await parallel.run(
+        "pipeline:\n  map:\n    over: '[1, 2, 3]'\n    parallel: 3\n    do:\n"
+        "      - step: { name: w }\n"
+    )
+    assert result.items[0].port == "fail" and result.items[0].value == {"error": "boom"}
+
+
+async def test_parallel_map_reports_cancellation() -> None:
+    from whiletrue.abort import AbortSignal
+
+    signal = AbortSignal()
+    signal.abort()
+    t = Harness()
+    result = await t.run(
+        "pipeline:\n  map:\n    over: '[1, 2]'\n    parallel: 2\n    do:\n      - step: { name: w }\n",
+        signal=signal,
+    )
+    assert result.items[0].state == "cancelled"

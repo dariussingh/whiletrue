@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from whiletrue.core import CompositeContext, Emit, PipelineNode, resolve_outcome
+from whiletrue.core import CompositeContext, Emit, PipelineNode, Scope, resolve_outcome
 from whiletrue.core.module import PortValues
 
 #: Wires can form cycles (a fixer wired back to its checker); this bounds them.
@@ -10,7 +10,10 @@ MAX_ROUTES = 1000
 
 
 async def run_chain(
-    children: list[PipelineNode], input: PortValues, ctx: CompositeContext[Any]
+    children: list[PipelineNode],
+    input: PortValues,
+    ctx: CompositeContext[Any],
+    scope: Scope | None = None,
 ) -> Emit:
     """Runs children in order, feeding each child's output into the next child's input.
 
@@ -35,7 +38,7 @@ async def run_chain(
         if ctx.signal.aborted:
             return Emit("fail", {"error": "cancelled"})
         child = children[index]
-        emit = await ctx.run(child, {} if current.value is None else {"in": current.value})
+        emit = await ctx.run(child, {} if current.value is None else {"in": current.value}, scope)
         resolution = resolve_outcome(emit.port, child.wires, ctx.policy)
         if resolution.action == "route":
             routes += 1

@@ -74,13 +74,16 @@ from whiletrue.core.module import (
 )
 from whiletrue.core.outcomes import (
     OUTCOME_PORTS,
+    InvalidTransition,
     ItemState,
     OnFail,
     OutcomePolicy,
     Resolution,
+    can_transition,
     is_outcome_port,
     item_state_for,
     resolve_outcome,
+    transition,
 )
 from whiletrue.core.registry import Plugin, PluginApi, Registry, RegistryError, SimplePlugin
 from whiletrue.core.replay import Recording, ReplayData, ReplayError, load_recording
@@ -92,7 +95,14 @@ from whiletrue.core.runner import (
     Runner,
     RunnerCapabilities,
 )
-from whiletrue.core.runtime import ItemOutcome, RunItem, RunResult, hash_pipeline, run_pipeline
+from whiletrue.core.runtime import (
+    ItemOutcome,
+    RunItem,
+    RunResult,
+    find_dependency_cycles,
+    hash_pipeline,
+    run_pipeline,
+)
 from whiletrue.core.source import SourceError, SourceProvider, fetch_items, source_spec
 from whiletrue.core.store import (
     ItemRecord,
@@ -111,6 +121,13 @@ from whiletrue.core.wake import (
     evaluate_wake,
     parse_wake,
     wake_to_dict,
+)
+from whiletrue.core.workspace import (
+    Workspace,
+    WorkspaceError,
+    WorkspaceProvider,
+    resolve_workspace,
+    workspace_spec,
 )
 
 __all__ = [
@@ -144,6 +161,7 @@ __all__ = [
     "Expr",
     "ExprError",
     "IncomingComment",
+    "InvalidTransition",
     "ItemOutcome",
     "ItemRecord",
     "ItemState",
@@ -193,7 +211,11 @@ __all__ = [
     "WakeContext",
     "WakeResult",
     "WakeSpec",
+    "Workspace",
+    "WorkspaceError",
+    "WorkspaceProvider",
     "WtEvent",
+    "can_transition",
     "check_lock",
     "collect_file_hashes",
     "create_builtin_caps",
@@ -203,6 +225,7 @@ __all__ = [
     "evaluate_wake",
     "expand_composites",
     "fetch_items",
+    "find_dependency_cycles",
     "format_diagnostic",
     "has_errors",
     "hash_pipeline",
@@ -223,12 +246,15 @@ __all__ = [
     "render_deep",
     "render_template",
     "resolve_outcome",
+    "resolve_workspace",
     "run_pipeline",
     "sha256_file",
     "source_spec",
     "sync_comments",
+    "transition",
     "validate_pipeline",
     "wake_to_dict",
     "with_prefix",
+    "workspace_spec",
     "write_lock",
 ]

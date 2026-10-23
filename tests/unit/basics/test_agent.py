@@ -98,9 +98,9 @@ async def test_renders_the_prompt_calls_the_runner_and_returns_text(tmp_path: Pa
     assert (req.limits.budget_usd, req.limits.turns, req.limits.wall_ms) == (1, 5, 60_000)
     assert req.session_id is not None
     assert re.fullmatch(r"[0-9a-f-]{36}", req.session_id)
-    assert len(events) == 1
-    assert events[0].type == "agent.event"
-    assert events[0].data == {"node": "node", "kind": "tool", "name": "Read"}
+    assert [e.type for e in events] == ["agent.event", "agent.event"]
+    assert events[0].data == {"node": "node", "kind": "runner", "runner": "claude-code-headless"}
+    assert events[1].data == {"node": "node", "kind": "tool", "name": "Read"}
 
 
 async def test_omits_optional_request_fields_when_not_configured(tmp_path: Path) -> None:
@@ -379,3 +379,23 @@ async def test_a_steer_reported_by_the_runner_is_recorded_in_the_history(tmp_pat
     await agent_module.run({"in": "x"}, ctx)
     [steer] = store.list_steers("item")
     assert (steer.step, steer.prompt, steer.created_at) == ("node", "use sqlite", 77)
+
+
+async def test_max_agents_caps_live_sessions(tmp_path: Path) -> None:
+    import asyncio
+
+    live = {"now": 0, "max": 0}
+
+    class Slow(FakeRunner):
+        async def run(self, request: AgentRequest, ctx: RunContext) -> AgentResult:
+            live["now"] += 1
+            live["max"] = max(live["max"], live["now"])
+            await asyncio.sleep(0.03)
+            live["now"] -= 1
+            return await super().run(request, ctx)
+
+    runner = Slow()
+    _, ctx, _ = setup(tmp_path, runner, agent(tmp_path, "slots", ""))
+    ctx = dataclasses.replace(ctx, agent_slots=asyncio.Semaphore(2))
+    await asyncio.gather(*(agent_module.run({"in": "x"}, ctx) for _ in range(5)))
+    assert live["max"] == 2

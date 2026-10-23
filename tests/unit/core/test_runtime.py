@@ -1,5 +1,6 @@
 from typing import Any
 
+import pytest
 from pydantic import BaseModel
 
 from whiletrue.abort import AbortSignal
@@ -495,3 +496,188 @@ async def test_steps_see_the_store_the_clock_and_watch_mode() -> None:
     config = parse_pipeline("on_idle: watch\npipeline:\n  - probe: {}\n", "t.yaml")
     await run_pipeline(registry=registry, config=config, store=store, now=lambda: 42)
     assert seen == {"store": store, "now": 42, "watch": True}
+
+
+# ---- M3: the parallel item scheduler ------------------------------------------------------
+
+import asyncio  # noqa: E402
+
+from whiletrue.core import (  # noqa: E402
+    InvalidTransition,
+    can_transition,
+    find_dependency_cycles,
+    transition,
+)
+
+live: dict[str, Any] = {"now": 0, "max": 0, "order": []}
+
+
+class NapCfg(BaseModel):
+    ms: int = 30
+
+
+async def nap_run(_i: PortValues, ctx: StepContext[NapCfg]) -> Emit:
+    live["now"] += 1
+    live["max"] = max(live["max"], live["now"])
+    live["order"].append(f"start:{ctx.item_id}")
+    await asyncio.sleep(ctx.config.ms / 1000)
+    live["now"] -= 1
+    live["order"].append(f"end:{ctx.item_id}")
+    return Emit("ok", ctx.item_id)
+
+
+def nap_registry() -> Registry:
+    r = make_registry()
+    r.register_action(
+        define_action(
+            ActionModule(
+                id="nap",
+                config=NapCfg,
+                ports=Ports(inputs=[PortSpec("in", "Any")], outputs=[PortSpec("out", "Any")]),
+                effects="deterministic",
+                cacheable=False,
+                run=nap_run,
+            )
+        )
+    )
+    return r
+
+
+def reset_live() -> None:
+    live.update(now=0, max=0, order=[])
+
+
+async def test_items_run_in_parallel_up_to_the_limit() -> None:
+    reset_live()
+    config = parse_pipeline("pipeline:\n  - nap: { ms: 40 }\n", "t.yaml")
+    items = [RunItem(str(i)) for i in range(6)]
+    result = await run_pipeline(
+        registry=nap_registry(), config=config, store=MemoryStore(), items=items, parallel=3
+    )
+    assert result.status == "done"
+    assert live["max"] == 3
+    assert [o.item_id for o in result.items] == [str(i) for i in range(6)]  # input order kept
+
+
+async def test_the_default_is_one_item_at_a_time() -> None:
+    reset_live()
+    config = parse_pipeline("pipeline:\n  - nap: { ms: 10 }\n", "t.yaml")
+    await run_pipeline(
+        registry=nap_registry(),
+        config=config,
+        store=MemoryStore(),
+        items=[RunItem("a"), RunItem("b")],
+    )
+    assert live["max"] == 1
+
+
+async def test_the_pipeline_can_set_its_own_parallelism() -> None:
+    reset_live()
+    config = parse_pipeline("parallel: 2\npipeline:\n  - nap: { ms: 30 }\n", "t.yaml")
+    await run_pipeline(
+        registry=nap_registry(),
+        config=config,
+        store=MemoryStore(),
+        items=[RunItem(str(i)) for i in range(4)],
+    )
+    assert live["max"] == 2
+
+
+async def test_dependents_wait_for_their_blockers_even_when_slots_are_free() -> None:
+    reset_live()
+    config = parse_pipeline("pipeline:\n  - nap: { ms: 40 }\n", "t.yaml")
+    await run_pipeline(
+        registry=nap_registry(),
+        config=config,
+        store=MemoryStore(),
+        items=[RunItem("b", depends_on=["a"]), RunItem("a"), RunItem("c")],
+        parallel=3,
+    )
+    order = live["order"]
+    assert order.index("end:a") < order.index("start:b")
+    assert order.index("start:c") < order.index("end:a")  # c did not wait for a
+
+
+async def test_a_failing_blocker_blocks_dependents_in_parallel_runs_too() -> None:
+    config = parse_pipeline("pipeline:\n  - emit: { port: fail, value: x }\n", "t.yaml")
+    result = await run_pipeline(
+        registry=make_registry(),
+        config=config,
+        store=MemoryStore(),
+        items=[RunItem("a"), RunItem("b", depends_on=["a"]), RunItem("c", depends_on=["b"])],
+        parallel=4,
+    )
+    assert {o.item_id: o.state for o in result.items} == {
+        "a": "parked",
+        "b": "pending",
+        "c": "pending",
+    }
+
+
+async def test_dependency_cycles_are_blocked_not_deadlocked() -> None:
+    config = parse_pipeline("pipeline:\n  - emit: { value: ok }\n", "t.yaml")
+    result = await asyncio.wait_for(
+        run_pipeline(
+            registry=make_registry(),
+            config=config,
+            store=MemoryStore(),
+            items=[
+                RunItem("a", depends_on=["b"]),
+                RunItem("b", depends_on=["a"]),
+                RunItem("c"),
+                RunItem("d", depends_on=["a"]),
+            ],
+            parallel=2,
+        ),
+        5,
+    )
+    states = {o.item_id: o.state for o in result.items}
+    assert states == {"a": "pending", "b": "pending", "c": "done", "d": "pending"}
+    assert result.items[0].value["blocked_by"] == ["dependency cycle"]
+
+
+def test_finding_cycles() -> None:
+    items = [
+        RunItem("a", depends_on=["b"]),
+        RunItem("b", depends_on=["c"]),
+        RunItem("c", depends_on=["a"]),
+        RunItem("d", depends_on=["a"]),
+        RunItem("e", depends_on=["e"]),
+        RunItem("f", depends_on=["ghost"]),
+    ]
+    assert find_dependency_cycles(items) == [["a", "b", "c"], ["e"]]
+    assert find_dependency_cycles([RunItem("x"), RunItem("y", depends_on=["x"])]) == []
+
+
+def test_the_item_state_machine() -> None:
+    assert can_transition("ready", "running") and can_transition("running", "parked")
+    assert can_transition("parked", "running") and can_transition("failed", "ready")
+    assert can_transition("ready", "pending") and can_transition("pending", "ready")
+    assert not can_transition("done", "running") and not can_transition("pending", "done")
+    assert transition("ready", "running") == "running"
+    with pytest.raises(InvalidTransition, match="done -> running"):
+        transition("done", "running")
+
+
+async def test_a_cancelled_item_in_the_store_stops_before_its_next_step() -> None:
+    reset_live()
+    store = MemoryStore()
+    config = parse_pipeline("pipeline:\n  - nap: { ms: 60 }\n  - nap: { ms: 60 }\n", "t.yaml")
+
+    async def cancel_soon() -> None:
+        await asyncio.sleep(0.03)
+        run = store.latest_run()
+        assert run is not None
+        store.set_item_state(run.id, "a", "cancelled")
+
+    task = asyncio.ensure_future(cancel_soon())
+    result = await run_pipeline(
+        registry=nap_registry(), config=config, store=store, items=[RunItem("a")]
+    )
+    await task
+    assert result.items[0].state == "cancelled"
+    run = store.latest_run()
+    assert run is not None
+    second = next(s for s in store.list_steps(run.id) if s.node_path.endswith(".1"))
+    assert second.error == "cancelled"
+    assert live["order"].count("start:a") == 1  # the second nap never ran
