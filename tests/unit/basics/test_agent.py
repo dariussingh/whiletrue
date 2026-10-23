@@ -202,3 +202,162 @@ def test_validate_rejects_asks_the_runner_cannot_satisfy(tmp_path: Path) -> None
     assert "structured output" in messages[0]
     assert "budget" in messages[1]
     assert 'session "item"' in messages[2]
+
+
+# ---- session memory, interactive request fields, parking ----------------------------------
+
+
+def setup_item(directory: Path, runner: FakeRunner, uses: str, sessions: dict[str, str] | None):
+    registry, ctx, _ = setup(directory, runner, uses)
+    if sessions is not None:
+        ctx.scope.set("sessions", sessions)
+    return registry, ctx
+
+
+async def test_fresh_sessions_never_resume(tmp_path: Path) -> None:
+    runner = FakeRunner(resume=True)
+    sessions: dict[str, str] = {}
+    _, ctx = setup_item(tmp_path, runner, agent(tmp_path, "s1", "session: fresh"), sessions)
+    await agent_module.run({"in": "x"}, ctx)
+    await agent_module.run({"in": "x"}, ctx)
+    assert runner.requests[0].resume is None and runner.requests[1].resume is None
+    assert runner.requests[0].session_id != runner.requests[1].session_id
+    assert sessions == {}
+
+
+async def test_item_session_is_created_then_resumed(tmp_path: Path) -> None:
+    runner = FakeRunner(resume=True)
+    sessions: dict[str, str] = {}
+    _, ctx = setup_item(tmp_path, runner, agent(tmp_path, "s2", "session: item"), sessions)
+    await agent_module.run({"in": "x"}, ctx)
+    first = runner.requests[0]
+    assert first.resume is None and first.session_id is not None
+    assert sessions == {"item": first.session_id}
+    await agent_module.run({"in": "x"}, ctx)
+    second = runner.requests[1]
+    assert (second.resume, second.session_id, second.fork) == (first.session_id, None, False)
+
+
+async def test_named_sessions_are_independent(tmp_path: Path) -> None:
+    runner = FakeRunner(resume=True)
+    sessions: dict[str, str] = {}
+    _, a = setup_item(tmp_path, runner, agent(tmp_path, "s3a", "session: design"), sessions)
+    _, b = setup_item(tmp_path, runner, agent(tmp_path, "s3b", "session: review"), sessions)
+    await agent_module.run({"in": "x"}, a)
+    await agent_module.run({"in": "x"}, b)
+    assert set(sessions) == {"design", "review"}
+    assert sessions["design"] != sessions["review"]
+
+
+async def test_a_failed_run_still_keeps_its_session_for_the_retry(tmp_path: Path) -> None:
+    runner = FakeRunner({"ok": False, "error": "e"}, resume=True)
+    sessions: dict[str, str] = {}
+    _, ctx = setup_item(tmp_path, runner, agent(tmp_path, "s4", "session: item"), sessions)
+    await agent_module.run({"in": "x"}, ctx)
+    await agent_module.run({"in": "x"}, ctx)
+    assert runner.requests[1].resume == runner.requests[0].session_id
+
+
+async def test_a_runner_reported_session_id_replaces_ours(tmp_path: Path) -> None:
+    runner = FakeRunner({"session_id": "real-id"}, resume=True)
+    sessions: dict[str, str] = {}
+    _, ctx = setup_item(tmp_path, runner, agent(tmp_path, "s5", "session: item"), sessions)
+    await agent_module.run({"in": "x"}, ctx)
+    assert sessions == {"item": "real-id"}
+
+
+async def test_fork_resumes_a_shared_session_without_changing_it(tmp_path: Path) -> None:
+    runner = FakeRunner({"session_id": "forked"}, resume=True, fork=True)
+    sessions = {"item": "base"}
+    _, ctx = setup_item(
+        tmp_path, runner, agent(tmp_path, "s6", "session: item\nfork: true"), sessions
+    )
+    await agent_module.run({"in": "x"}, ctx)
+    req = runner.requests[0]
+    assert (req.resume, req.fork, req.session_id) == ("base", True, None)
+    assert sessions == {"item": "base"}
+
+
+async def test_a_fork_with_nothing_to_fork_starts_fresh_and_records_it(tmp_path: Path) -> None:
+    runner = FakeRunner(resume=True, fork=True)
+    sessions: dict[str, str] = {}
+    _, ctx = setup_item(
+        tmp_path, runner, agent(tmp_path, "s7", "session: item\nfork: true"), sessions
+    )
+    await agent_module.run({"in": "x"}, ctx)
+    assert runner.requests[0].resume is None and "item" in sessions
+
+
+async def test_shared_sessions_without_a_session_store_behave_as_fresh(tmp_path: Path) -> None:
+    runner = FakeRunner(resume=True)
+    _, ctx = setup_item(tmp_path, runner, agent(tmp_path, "s8", "session: item"), None)
+    await agent_module.run({"in": "x"}, ctx)
+    assert runner.requests[0].resume is None
+
+
+async def test_passes_interactive_request_fields(tmp_path: Path) -> None:
+    runner = FakeRunner()
+    uses = agent(
+        tmp_path,
+        "r1",
+        f"{LIMITS}\non_done: keep\nbare: true\nadd_dirs: [specs]\n"
+        "append_system_prompt_file: rules.md\nmcp_config: [mcp.json]\noutputs: { r: Verdict }",
+    )
+    _, ctx, _ = setup(tmp_path, runner, uses)
+    await agent_module.run({"in": "x"}, ctx)
+    req = runner.requests[0]
+    assert req.on_done == "keep" and req.bare
+    assert req.add_dirs == [str(tmp_path / "specs")]
+    assert req.append_system_prompt_file == str(tmp_path / "rules.md")
+    assert req.mcp_config == [str(tmp_path / "mcp.json")]
+    assert (req.step_key, req.output_cap) == (ctx.step_key, "Verdict")
+    assert req.label == "item r1"
+    assert req.item == {"id": "i1"}
+    assert req.validate_output is not None
+    assert req.validate_output({"pass": True}).ok
+    assert not req.validate_output({"pass": 3}).ok
+
+
+async def test_untyped_outputs_get_no_validator(tmp_path: Path) -> None:
+    runner = FakeRunner()
+    _, ctx, _ = setup(tmp_path, runner, agent(tmp_path, "r2", "outputs: { r: Text }"))
+    await agent_module.run({"in": "x"}, ctx)
+    assert runner.requests[0].validate_output is None
+
+
+async def test_a_parked_agent_fires_needs_human_with_the_reason(tmp_path: Path) -> None:
+    runner = FakeRunner(
+        {"ok": False, "park": "budget_exceeded", "error": "over budget", "text": "partial"}
+    )
+    _, ctx, _ = setup(tmp_path, runner, agent(tmp_path, "p1", ""))
+    r = await agent_module.run({"in": "x"}, ctx)
+    assert r.port == "needs_human"
+    assert r.value == {"reason": "budget_exceeded", "detail": "over budget", "text": "partial"}
+
+
+async def test_reports_the_agent_and_steered_cost_split(tmp_path: Path) -> None:
+    runner = FakeRunner({"cost_usd": 1.0, "steered_cost_usd": 0.25, "steered": True})
+    _, ctx, events = setup(tmp_path, runner, agent(tmp_path, "c1", ""))
+    spent: list[float] = []
+    ctx = dataclasses.replace(ctx, record_cost=spent.append)
+    await agent_module.run({"in": "x"}, ctx)
+    assert spent == [1.0]
+    split = next(e for e in events if e.data.get("kind") == "cost")
+    assert (split.data["agent_usd"], split.data["steered_usd"]) == (0.75, 0.25)
+
+
+def test_validate_rejects_fork_on_runners_without_it(tmp_path: Path) -> None:
+    uses = agent(tmp_path, "f1", f"{LIMITS}\nsession: item\nfork: true")
+    messages = [i.message for i in validate(tmp_path, FakeRunner(resume=True), uses)]
+    assert any("fork" in m for m in messages)
+    assert validate(tmp_path, FakeRunner(resume=True, fork=True), uses) == []
+
+
+def test_validate_warns_that_bare_disables_whiletrues_hooks_on_interactive_runners(
+    tmp_path: Path,
+) -> None:
+    uses = agent(tmp_path, "b1", f"{LIMITS}\nbare: true")
+    issues = validate(tmp_path, FakeRunner(interactive=True), uses)
+    assert [i.severity for i in issues] == ["warning"]
+    assert "hooks" in issues[0].message
+    assert validate(tmp_path, FakeRunner(), uses) == []

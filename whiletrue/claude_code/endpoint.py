@@ -53,6 +53,10 @@ class EventEndpoint:
         return int(self._server.sockets[0].getsockname()[1])
 
     @property
+    def started(self) -> bool:
+        return self._server is not None
+
+    @property
     def url(self) -> str:
         return f"http://{self._host}:{self.port}"
 

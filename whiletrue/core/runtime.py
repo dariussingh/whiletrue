@@ -138,6 +138,8 @@ async def run_pipeline(
     for item in items:
         item_scope = Scope()
         item_scope.set("run", {"id": run_id})
+        #: Agent session ids shared across this item's steps (`session: item` or a name).
+        item_scope.set("sessions", {})
         raw_payload: Any = item.payload
         fields: dict[str, Any] = {}
         if isinstance(raw_payload, dict):

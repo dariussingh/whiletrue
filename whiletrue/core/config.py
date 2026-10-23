@@ -368,6 +368,12 @@ class _AgentFrontmatter(BaseModel):
     outputs: dict[str, str] = Field(default_factory=lambda: {})
     context: dict[str, Any] = Field(default_factory=lambda: {})
     limits: _LimitsFrontmatter | None = None
+    fork: bool = False
+    on_done: Literal["close", "keep"] = "close"
+    add_dirs: list[str] | None = None
+    append_system_prompt_file: str | None = None
+    mcp_config: list[str] | None = None
+    bare: bool = False
 
 
 @dataclass
@@ -384,6 +390,14 @@ class AgentDefinition:
     outputs: dict[str, str] = field(default_factory=lambda: {})
     context: dict[str, Any] = field(default_factory=lambda: {})
     limits: AgentLimits | None = None
+    #: With a shared `session`: branch from it without changing it.
+    fork: bool = False
+    #: Interactive runners: close the pane when the step ends, or keep it on screen.
+    on_done: Literal["close", "keep"] = "close"
+    add_dirs: list[str] | None = None
+    append_system_prompt_file: str | None = None
+    mcp_config: list[str] | None = None
+    bare: bool = False
 
 
 _FRONTMATTER = re.compile(r"\A---\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)(.*)\Z", re.DOTALL)
@@ -425,6 +439,12 @@ def parse_agent_definition(text: str, file: str) -> AgentDefinition:
         outputs=fm.outputs,
         context=fm.context,
         limits=limits,
+        fork=fm.fork,
+        on_done=fm.on_done,
+        add_dirs=fm.add_dirs,
+        append_system_prompt_file=fm.append_system_prompt_file,
+        mcp_config=fm.mcp_config,
+        bare=fm.bare,
         prompt=match.group(2).strip(),
     )
 

@@ -7,10 +7,12 @@ def test_registers_the_builtin_modules() -> None:
     r.use(basics_plugin)
     assert r.ids() == [
         "agent",
+        "context.reset",
         "exec",
         "gate.diff_size",
         "gate.shell",
         "gate.tests",
+        "session.end",
         "set",
         "shell",
     ]

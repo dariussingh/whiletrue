@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from whiletrue.abort import AbortSignal
+from whiletrue.core.caps import CapValidation
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,24 @@ class AgentRequest:
     session_id: str | None = None
     #: Existing session to resume.
     resume: str | None = None
+    #: With `resume`: branch into a new session instead of continuing the old one.
+    fork: bool = False
+    add_dirs: list[str] | None = None
+    append_system_prompt_file: str | None = None
+    mcp_config: list[str] | None = None
+    #: Reproducible mode: skip hooks, plugins, memory and auto-discovery (`claude --bare`).
+    bare: bool = False
+    #: Interactive runners: what happens to the pane when the step ends.
+    on_done: Literal["close", "keep"] = "close"
+    #: Identity of the step execution, for tying a live session back to it.
+    step_key: str | None = None
+    #: A short title for the pane, e.g. `#7 implement`.
+    label: str | None = None
+    #: The item's payload (what `whiletrue_context` returns to the agent).
+    item: dict[str, Any] | None = None
+    #: Name of the output cap and a validator for it (interactive runners check `whiletrue_submit`).
+    output_cap: str | None = None
+    validate_output: Callable[[Any], CapValidation] | None = None
 
 
 @dataclass
@@ -57,6 +76,12 @@ class AgentResult:
     cost_usd: float | None = None
     turns: int | None = None
     error: str | None = None
+    #: Why the step needs a person instead of failing: `needs_human`, `budget_exceeded`, ...
+    park: str | None = None
+    #: A person typed into the session, which lifts the step's limits.
+    steered: bool = False
+    #: The part of `cost_usd` spent after the steer.
+    steered_cost_usd: float | None = None
 
 
 @dataclass

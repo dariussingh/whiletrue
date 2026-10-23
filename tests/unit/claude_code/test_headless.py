@@ -225,3 +225,10 @@ def test_plugin_registers_the_headless_runner() -> None:
     reg = Registry()
     reg.use(claude_code_plugin())
     assert reg.get_runner("claude-code-headless") is not None
+
+
+def test_plugin_also_registers_the_interactive_runner() -> None:
+    reg = Registry()
+    reg.use(claude_code_plugin())
+    runner = reg.get_runner("claude-code")
+    assert runner is not None and runner.capabilities.interactive

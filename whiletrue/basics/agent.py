@@ -71,6 +71,22 @@ def _runner_issues(
                 "cannot enforce one",
             )
         )
+    if definition.fork and not runner.capabilities.fork:
+        issues.append(
+            ConfigIssue(
+                "error",
+                f'Agent "{definition.name}" asks to fork a session but runner "{runner_id}" '
+                "cannot fork",
+            )
+        )
+    if definition.bare and runner.capabilities.interactive:
+        issues.append(
+            ConfigIssue(
+                "warning",
+                f'Agent "{definition.name}" sets `bare`, which turns off hooks: runner '
+                f'"{runner_id}" then cannot nudge, enforce limits or detect steering',
+            )
+        )
     if definition.session != "fresh" and not runner.capabilities.resume:
         issues.append(
             ConfigIssue(
@@ -121,6 +137,14 @@ async def _run(input: PortValues, ctx: StepContext[AgentConfig]) -> Emit:
         wall = AbortSignal.timeout(definition.limits.wall_ms)
         signal = AbortSignal.any(ctx.signal, wall)
 
+    sessions: dict[str, str] | None = ctx.scope.get("sessions")
+    shared = definition.session if definition.session != "fresh" and sessions is not None else None
+    existing = sessions.get(shared) if sessions is not None and shared else None
+    new_session = str(uuid.uuid4())
+
+    def path(p: str) -> str:
+        return str(Path(ctx.cwd) / p)
+
     request = AgentRequest(
         prompt=prompt,
         cwd=ctx.cwd,
@@ -135,7 +159,23 @@ async def _run(input: PortValues, ctx: StepContext[AgentConfig]) -> Emit:
         )
         if definition.limits is not None
         else None,
-        session_id=str(uuid.uuid4()),
+        session_id=None if existing else new_session,
+        resume=existing,
+        fork=bool(existing) and definition.fork,
+        add_dirs=[path(d) for d in definition.add_dirs] if definition.add_dirs else None,
+        append_system_prompt_file=path(definition.append_system_prompt_file)
+        if definition.append_system_prompt_file
+        else None,
+        mcp_config=[path(c) for c in definition.mcp_config] if definition.mcp_config else None,
+        bare=definition.bare,
+        on_done=definition.on_done,
+        step_key=ctx.step_key,
+        label=f"{ctx.item_id} {definition.name}",
+        item=ctx.scope.get("item"),
+        output_cap=out_cap,
+        validate_output=(lambda v, cap=out_cap: ctx.registry.caps.validate(cap, v))
+        if structured and out_cap
+        else None,
     )
 
     def on_event(event: dict[str, Any]) -> None:
@@ -152,8 +192,24 @@ async def _run(input: PortValues, ctx: StepContext[AgentConfig]) -> Emit:
         if wall is not None:
             wall.dispose()
             signal.dispose()
+    if shared and sessions is not None and not (existing and definition.fork):
+        # Remember the conversation (even a failed one) so a retry or a later step continues it.
+        sessions[shared] = result.session_id or existing or new_session
     if result.cost_usd:
         ctx.record_cost(result.cost_usd)
+    if result.steered_cost_usd is not None:
+        on_event(
+            {
+                "kind": "cost",
+                "agent_usd": (result.cost_usd or 0.0) - result.steered_cost_usd,
+                "steered_usd": result.steered_cost_usd,
+            }
+        )
+    if result.park:
+        return Emit(
+            "needs_human",
+            {"reason": result.park, "detail": result.error, "text": result.text},
+        )
     if not result.ok:
         return Emit("fail", {"error": result.error or "agent failed", "text": result.text})
     value = result.output if result.output is not None else result.text

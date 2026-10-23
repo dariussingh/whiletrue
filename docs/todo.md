@@ -60,11 +60,11 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 38. [x] Local event endpoint in the whiletrue process (receives hook posts).
 39. [x] Bundled Claude Code plugin: MCP tools `whiletrue_submit` (validated against output caps, returns schema errors), `whiletrue_learn`, `whiletrue_ask`, `whiletrue_context`.
 40. [x] Plugin hooks: `SessionStart` (bind to step), `PostToolUse` (events/cost/turns), `UserPromptSubmit` (steer), `Notification` (flag pane), `Stop` (nudge up to N then park), `SessionEnd`.
-41. [ ] Interactive runner: launch `claude "<prompt>"` with flag mapping (`--session-id`, `--resume`, `--fork-session`, `--model`, tools/permissions, `--append-system-prompt-file`, `--add-dir`, `--mcp-config`, `--plugin-dir`, `--bare`).
-42. [ ] Session memory options: `fresh`, `item`, named, `fork`; `session.end` and `context.reset` modules.
-43. [ ] Limits without headless flags: turns & wall time from hooks; budget estimate from transcript with `PreToolUse` deny → park `budget_exceeded`. (OQ-2)
-44. [ ] Steering lifts limits; cost split agent vs. steered; gates still run.
-45. [ ] Validator rejects steps requesting features their runner lacks.
+41. [x] Interactive runner: launch `claude "<prompt>"` with flag mapping (`--session-id`, `--resume`, `--fork-session`, `--model`, tools/permissions, `--append-system-prompt-file`, `--add-dir`, `--mcp-config`, `--plugin-dir`, `--bare`).
+42. [x] Session memory options: `fresh`, `item`, named, `fork`; `session.end` and `context.reset` modules.
+43. [x] Limits without headless flags: turns & wall time from hooks; budget estimate from transcript with `PreToolUse` deny → park `budget_exceeded`. (OQ-2)
+44. [x] Steering lifts limits; cost split agent vs. steered; gates still run.
+45. [x] Validator rejects steps requesting features their runner lacks.
 46. [ ] **M2 exit:** one issue completed in a live tmux pane with typed result submitted.
 
 ## Phase M3 · Parallel items & DAG _(parallel with M2)_

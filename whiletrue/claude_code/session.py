@@ -79,7 +79,7 @@ class StepSession:
     def __init__(self, spec: SessionSpec) -> None:
         self._spec = spec
         self._started = spec.clock()
-        self.outcome: asyncio.Future[SessionOutcome] = asyncio.get_event_loop().create_future()
+        self.outcome: asyncio.Future[SessionOutcome] = asyncio.get_running_loop().create_future()
         self.session_id: str | None = None
         self.transcript_path: str | None = None
         self.submitted = False
@@ -304,6 +304,13 @@ class StepSession:
                 f"{self._nudges} reminder(s)",
             )
         return None
+
+    def park(self, reason: ParkReason, detail: str) -> None:
+        """Parks the step from outside (the runner's wall-time timer, a dead pane, ...)."""
+        if self.outcome.done():
+            return
+        self.limit_hit = reason if reason != "needs_human" else self.limit_hit
+        self._finish("parked", reason=reason, detail=detail)
 
     def _on_end(self) -> None:
         if self.outcome.done():
