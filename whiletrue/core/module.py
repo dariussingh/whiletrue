@@ -83,6 +83,9 @@ class ActionModule[Cfg: BaseModel]:
     validate: Callable[[Cfg, ValidateContext], list[ConfigIssue]] | None = None
     #: Required for `side-effect` modules: a deterministic key so resume never repeats the effect.
     idempotency_key: Callable[[PortValues, StepContext[Cfg]], str] | None = None
+    #: Record the result under `idempotency_key` so a repeat (resume, a second run) reuses it
+    #: instead of repeating the effect. The key must name the *effect*, not the run.
+    journal: bool = False
 
 
 @dataclass

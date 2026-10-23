@@ -313,9 +313,10 @@ Human gates park one item and never block the run. The TUI is a tmux session: on
 - human.approve:
     what: pr                      # shown in status and the control panel
     show: "{{steps.pr.output.url}}"
-    wake: { any: [cli, github.pr_review: approved] }
-    on_comment: review.respond    # answer every new comment, then park again
-    on_reject: rejected           # fires the rejected port with your note
+    wake: { any: [cli, { github.pr_review: approved }] }
+  do:                             # runs when new comments arrive, then the gate parks again
+    - composite: { uses: "recipe:review-respond", params: { responder: ./agents/respond.md } }
+  wires: { rejected: fix }        # the rejected port carries your note
 ```
 
 - `whiletrue approve <item> [--note]` fires `ok`.
@@ -389,9 +390,9 @@ pipeline:
       - id: my_review              # non-negotiable 4: the human reads every PR
         human.approve:
           what: pr
-          wake: { any: [cli, github.pr_review: approved] }
-          on_comment: review.respond   # every question and comment gets a reply
-          on_reject: rejected
+          wake: { any: [cli, { github.pr_review: approved }] }
+        do:                            # every question and comment gets a reply
+          - composite: { uses: "recipe:review-respond", params: { responder: ./agents/respond.md } }
         wires: { rejected: fix }
 
       - id: ai_review
@@ -409,7 +410,7 @@ pipeline:
             - gate.comments_answered: {}
 
       - github.sync_base: { strategy: rebase }   # resolves conflicts or parks
-      - human.approve: { what: merge, wake: { any: [cli] }, on_comment: review.respond }
+      - human.approve: { what: merge, wake: { any: [cli] } }
       - github.merge: { lock: "repo:main" }
       - history.distill: { propose_learnings: true }
 ```
@@ -444,7 +445,7 @@ One Python distribution, `whiletrue`, published to PyPI. Each row below is a sub
 - `agents/*.md` and `loops/*.yaml` hold the project's agent modules and composites.
 - `.whiletrue/` holds `state.db`, logs and session transcripts. It is git-ignored.
 
-## Implementation status (M0, M1 and M2)
+## Implementation status (M0, M1, M2 and M4)
 
 Built and tested; user-facing detail is in [reference.md](reference.md), extension API in [plugins.md](plugins.md).
 
@@ -475,6 +476,19 @@ Built and tested; user-facing detail is in [reference.md](reference.md), extensi
 - *Steering.* Any `UserPromptSubmit` after the first is a steer: limits lift, nudging stops, and spend after that moment is reported as steered.
 - *Sessions.* The item scope holds `sessions: {name: claude session id}`. `session: item|<name>` resumes (`--resume`), `fork: true` adds `--fork-session` without updating the stored id, and `session.end` / `context.reset` remove entries.
 - *Trust prompt.* Claude Code's "trust this folder" dialog is left to the human in the pane; whiletrue does not auto-trust directories.
+
+**Human gates, GitHub and review (M4).** Built as designed, with these specifics:
+
+- *Not parallel yet.* M4 was built before M3, so the pieces of M3 it needs exist (items ordered by `depends_on`, the `json` source, named locks, the effect journal, `resume`) but not the parallel scheduler, worktrees, crash recovery, `rerun` or `cancel`. A parked or watching gate holds the run's other items.
+- *Park and resume.* A parked gate is a row in `parks` (keyed by item, so it can be decided from another process). `resume` is a replay that continues: `run_pipeline(replay=..., resume=True, lineage=...)` serves recorded results for every non-`pure` action except steps that fired `needs_human`, runs anything with no recording for real, and creates a new run in the same lineage. The Nth execution of a gate in a lineage uses the Nth park, which makes replays deterministic and gives a loop one park per pass. Children of a gate run with replay off (`scope no_replay`) so new comments always get live answers.
+- *Side effects.* `ActionModule.journal` records a result under an effect key (`github.open_pr:o/r:wt/12`, `github.merge:o/r:1`, `reply:<item>:<source>:<comment>`); a repeat returns the recorded result. A `started` effect with no `done` (a crash mid-post) is not repeated.
+- *Comments.* `CommentsProvider`s (`github_pr`, plus local ones in the store) feed `comments` rows, unique per (item, source, external id) and flagged answered once a reply is posted. `[whiletrue]` prefixes every reply, replies are journaled, and no provider can resolve a thread. `review-respond` is the "collect, classify, act, reply, check" loop: the gate collects, the responder agent classifies and acts, `comments.reply` posts, `gate.comments_answered` verifies. Out-of-scope comments are answered with a proposed follow-up in the reply text; creating the issue is left to the person.
+- *Wake conditions* are `wake` providers returning a decision or nothing. `github.pr_review` maps an approving review to `approved` and changes requested to `rejected` with the review text as the note.
+- *Branches.* In a chain, a sibling that an earlier step wires forward to only runs when routed to; `tap` runs children and passes its own input through, which keeps the PR flowing around a fix.
+- *GitHub.* All calls go through `GitHubClient` (the `gh` CLI in production, `InMemoryGitHub` in tests). Blocked-by comes from the dependencies API with a "Blocked by #N" body fallback. The spec-link convention (OQ-5) is a `spec: path#L1-L9` line.
+- *History.* `context.history` renders an item's decisions, comments, replies and steers (and approved lessons); `history.distill` proposes lessons from rejections and steers for `whiletrue learnings approve`. Distillation is rule-based today, not an agent.  Steers typed into interactive sessions are written to `steers` as they happen.
+- *opencode.* `opencode run --format json`, structured output requested in the prompt and checked against the cap, no budget enforcement; with tmux its stream is mirrored to a read-only pane.
+- *Control panel.* `whiletrue panel` runs in tmux window 0: items, state, step, who they wait for, cost, age; approve, reject and focus work, rerun and cancel wait for M3.
 
 ## Milestones to v0.1 and open questions
 

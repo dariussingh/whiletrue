@@ -302,3 +302,196 @@ def test_hash_pipeline_is_stable_and_sensitive_to_config() -> None:
     c = parse_pipeline("pipeline: [ { emit: { value: 2 } } ]", "c.yaml")
     assert hash_pipeline(a) == hash_pipeline(b)
     assert hash_pipeline(a) != hash_pipeline(c)
+
+
+# ---- M4 foundations: journal, resume, no_replay, dependencies, services -------------------
+
+executions: list[str] = []
+
+
+class FxCfg(BaseModel):
+    key: str = "k"
+
+
+async def fx_run(_i: PortValues, ctx: StepContext[FxCfg]) -> Emit:
+    executions.append(ctx.config.key)
+    return Emit("ok", {"made": ctx.config.key, "n": len(executions)})
+
+
+def journaled_registry(*, journal: bool = True) -> Registry:
+    r = make_registry()
+    r.register_action(
+        define_action(
+            ActionModule(
+                id="fx",
+                config=FxCfg,
+                ports=Ports(inputs=[PortSpec("in", "Any")], outputs=[PortSpec("out", "Any")]),
+                effects="side-effect",
+                run=fx_run,
+                idempotency_key=lambda _i, ctx: f"fx:{ctx.config.key}",
+                journal=journal,
+            )
+        )
+    )
+    return r
+
+
+async def test_a_journaled_effect_runs_once_across_runs() -> None:
+    executions.clear()
+    store = MemoryStore()
+    config = parse_pipeline("pipeline:\n  - fx: { key: a }\n", "t.yaml")
+    first = await run_pipeline(registry=journaled_registry(), config=config, store=store)
+    second = await run_pipeline(registry=journaled_registry(), config=config, store=store)
+    assert executions == ["a"]
+    assert first.items[0].value == second.items[0].value
+    assert store.list_events(second.run_id, type="step.journaled")
+    done = store.effect_get("fx:a")
+    assert done is not None and done.status == "done"
+
+
+async def test_unjournaled_effects_run_every_time() -> None:
+    executions.clear()
+    store = MemoryStore()
+    config = parse_pipeline("pipeline:\n  - fx: { key: b }\n", "t.yaml")
+    registry = journaled_registry(journal=False)
+    await run_pipeline(registry=registry, config=config, store=store)
+    await run_pipeline(registry=registry, config=config, store=store)
+    assert executions == ["b", "b"]
+
+
+async def test_a_failed_effect_is_not_remembered() -> None:
+    store = MemoryStore()
+    registry = journaled_registry()
+    config = parse_pipeline("pipeline:\n  - emit: { port: fail, value: x }\n", "t.yaml")
+    await run_pipeline(registry=registry, config=config, store=store)
+    assert store.effect_get("fx:never") is None
+
+
+async def test_resume_serves_recorded_steps_and_runs_the_rest_for_real() -> None:
+    executions.clear()
+    store = MemoryStore()
+    registry = journaled_registry(journal=False)
+    first_cfg = parse_pipeline("pipeline:\n  - fx: { key: one }\n", "t.yaml")
+    first = await run_pipeline(registry=registry, config=first_cfg, store=store)
+    assert executions == ["one"]
+
+    longer = parse_pipeline("pipeline:\n  - fx: { key: one }\n  - fx: { key: two }\n", "t.yaml")
+    from whiletrue.core import load_recording
+
+    recording = load_recording(store, first.run_id)
+    # The first step shares a node id with the original run; the second is new.
+    result = await run_pipeline(
+        registry=registry,
+        config=longer,
+        store=store,
+        items=recording.items,
+        replay=recording.steps,
+        resume=True,
+    )
+    assert executions == ["one", "two"]
+    assert result.status == "done"
+    assert store.list_events(result.run_id, type="step.replayed")
+
+
+async def test_strict_replay_still_diverges_on_a_missing_recording() -> None:
+    store = MemoryStore()
+    config = parse_pipeline("pipeline:\n  - fx: { key: z }\n", "t.yaml")
+    result = await run_pipeline(
+        registry=journaled_registry(journal=False), config=config, store=store, replay={}
+    )
+    assert result.status == "parked"
+    steps = store.list_steps(result.run_id)
+    assert any("Replay diverged" in (s.error or "") for s in steps)
+
+
+async def test_scopes_can_opt_out_of_replay() -> None:
+    executions.clear()
+    store = MemoryStore()
+    registry = journaled_registry(journal=False)
+
+    async def gate_run(
+        children: list[PipelineNode], input: PortValues, ctx: CompositeContext[EmptyConfig]
+    ) -> Emit:
+        ctx.scope.set("no_replay", True)
+        return await ctx.run(children[0], {"in": None})
+
+    registry.register_strategy(
+        define_strategy(Strategy(id="live", config=EmptyConfig, run=gate_run))
+    )
+    config = parse_pipeline("pipeline:\n  live:\n    do:\n      - fx: { key: inner }\n", "t.yaml")
+    first = await run_pipeline(registry=registry, config=config, store=store)
+    from whiletrue.core import load_recording
+
+    recording = load_recording(store, first.run_id)
+    await run_pipeline(
+        registry=registry,
+        config=config,
+        store=store,
+        items=recording.items,
+        replay=recording.steps,
+        resume=True,
+    )
+    assert executions == ["inner", "inner"]
+
+
+async def test_items_run_after_their_dependencies_and_blocked_items_wait() -> None:
+    store = MemoryStore()
+    config = parse_pipeline("pipeline:\n  - emit: { value: ok }\n", "t.yaml")
+    order: list[str] = []
+    bus = EventBus()
+    bus.subscribe(lambda e: order.append(e.item_id or "") if e.type == "step.started" else None)
+    result = await run_pipeline(
+        registry=make_registry(),
+        config=config,
+        store=store,
+        bus=bus,
+        items=[
+            RunItem("b", depends_on=["a"]),
+            RunItem("a"),
+            RunItem("c", depends_on=["missing"]),
+        ],
+    )
+    assert list(dict.fromkeys(order)) == ["a", "b"]
+    states = {o.item_id: o.state for o in result.items}
+    assert states == {"a": "done", "b": "done", "c": "pending"}
+    assert result.status == "parked"
+    blocked = store.list_events(result.run_id, item_id="c", type="item.state")
+    assert blocked and blocked[-1].data["state"] == "pending"
+
+
+async def test_a_failed_dependency_blocks_its_dependents() -> None:
+    store = MemoryStore()
+    config = parse_pipeline("pipeline:\n  - emit: { port: fail, value: x }\n", "t.yaml")
+    result = await run_pipeline(
+        registry=make_registry(),
+        config=config,
+        store=store,
+        items=[RunItem("a"), RunItem("b", depends_on=["a"])],
+    )
+    states = {o.item_id: o.state for o in result.items}
+    assert states == {"a": "parked", "b": "pending"}
+
+
+async def test_steps_see_the_store_the_clock_and_watch_mode() -> None:
+    seen: dict[str, Any] = {}
+
+    async def probe(_i: PortValues, ctx: StepContext[EmptyConfig]) -> Emit:
+        seen.update(store=ctx.store, now=ctx.now(), watch=ctx.watch)
+        return Emit("ok")
+
+    registry = make_registry()
+    registry.register_action(
+        define_action(
+            ActionModule(
+                id="probe",
+                config=EmptyConfig,
+                ports=Ports(inputs=[PortSpec("in", "Any")], outputs=[PortSpec("out", "Any")]),
+                effects="pure",
+                run=probe,
+            )
+        )
+    )
+    store = MemoryStore()
+    config = parse_pipeline("on_idle: watch\npipeline:\n  - probe: {}\n", "t.yaml")
+    await run_pipeline(registry=registry, config=config, store=store, now=lambda: 42)
+    assert seen == {"store": store, "now": 42, "watch": True}

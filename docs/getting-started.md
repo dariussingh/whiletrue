@@ -83,6 +83,42 @@ Sessions: `session: fresh` (default) starts a new conversation; `session: item` 
 
 **Recipes** are ready-made loops: `composite: { uses: "recipe:ralph", params: { agent: ./agents/fixer.md } }`. See [reference.md](reference.md#composites-and-recipes).
 
+## People in the loop
+
+A **human gate** parks an item until a person decides, without stopping other work:
+
+```yaml
+- id: review
+  human.approve:
+    what: pr                                   # shown in `status` and the panel
+    wake: { any: [cli, { github.pr_review: any }] }   # besides `whiletrue approve|reject`
+  do:                                          # runs whenever new comments arrive
+    - composite: { uses: "recipe:review-respond", params: { responder: ./agents/respond.md } }
+  wires: { rejected: fix }
+```
+
+- **Park and resume.** With the default `on_idle: exit` the run stops (exit code 2) and `whiletrue status` lists what is waiting. Decide with `whiletrue approve <item>` or `whiletrue reject <item> --note "what to change"`, then `whiletrue resume`: finished steps are replayed from the record (never redone) and the item continues past the gate. With `on_idle: watch` the run stays up and picks decisions up by itself.
+- **Approve and reject.** Approval lets the item through. A rejection fires the gate's `rejected` port with your note under `rejection`; wire it to a fix step. A step that is wired to from an earlier step is a *branch*: it runs only when routed to, so put the fix step after the gate and end it with `wires: { ok: review }` to ask again. Use `tap:` instead of `sequence:` for a fix branch so the item's data (the PR) flows on unchanged.
+- **Every comment gets an answer.** A comment (`whiletrue comment <item> "..."`, or a GitHub review comment) wakes the gate's `do:` steps. `recipe:review-respond` has your responder agent classify each comment, make changes, return one reply per comment (`outputs: { replies: CommentReplies }`), runs your tests, posts each reply in its own thread prefixed `[whiletrue]` (once only), and fails while any comment is unanswered. Agents never resolve a human's thread.
+- **Wake conditions.** `cli` always works. Others: `file_exists: path`, `timer: 10m`, `github.pr_review: approved | changes_requested | any`, `github.pr_merged`, or one your plugin registers. `any` fires on the first, `all` needs every one.
+- **Audit trail.** `whiletrue history <item>` prints one timeline of parks, decisions (who, when, note), comments, replies and steers. `context.history` feeds the same history to an agent; `history.distill` proposes lessons from rejections and steers, and nothing reaches an agent until you approve it with `whiletrue learnings approve <id>`.
+- **The control panel.** In tmux, window 0 is `whiletrue panel`: every item with its state, step, what it waits for, cost and age; `j/k` move, `a` approve, `r` reject (asks for a note), `f` jumps to the item's pane.
+
+## GitHub issues, one by one
+
+`source: { github_issues: { milestone: M3 } }` makes each open issue an item (id = issue number, blocked-by relations become `depends_on`, `spec: path#L1-L9` lines become `item.spec_refs`). The `gh` CLI must be installed and logged in. `recipe:issue-loop` runs one issue from open to merged:
+
+```yaml
+source: { github_issues: { repo: owner/name, milestone: M3 } }
+pipeline:
+  - id: issue
+    composite:
+      uses: "recipe:issue-loop"
+      params: { implementer: ./agents/implement.md, fixer: ./agents/fix.md, responder: ./agents/respond.md }
+```
+
+It branches `wt/<n>`, implements with retries behind your `gate`, opens (or reuses) the PR, parks at a review gate that answers comments and routes rejections to the fixer, rebases onto `main` (a conflict parks the item), asks for a final approval, and merges under the lock `repo:main`. Opening the PR, replying to a comment and merging are recorded in an effect journal, so a resume never repeats them. Items run one after another today, and a parked item holds the run until you decide (parallel items are milestone 3).
+
 ## Commands
 
 | Command | What it does |
@@ -95,6 +131,13 @@ Sessions: `session: fresh` (default) starts a new conversation; `session: item` 
 | `whiletrue replay [run]` | Re-run a recorded run's logic without calling agents or tools |
 | `whiletrue lock` | Pin the plugin versions in use to `whiletrue.lock` |
 | `whiletrue attach` | Attach to the project's tmux session (live agent panes) |
+| `whiletrue resume [run]` | Continue a parked run: recorded steps are replayed, decided gates let their item through |
+| `whiletrue approve <item> [--note] [--step id]` | Approve the gate the item is parked at |
+| `whiletrue reject <item> --note "..."` | Reject it; the note goes to the gate's `rejected` route |
+| `whiletrue comment <item> "text"` | Leave a comment the pipeline must answer |
+| `whiletrue history <item>` | The item's timeline of parks, decisions, comments, replies and steers |
+| `whiletrue learnings [approve\|reject <id>]` | Review lessons proposed by `history.distill` |
+| `whiletrue panel` | The control panel (what tmux window 0 runs) |
 
 Use `-f/--file <path>` to point at a different pipeline file.
 
@@ -104,7 +147,7 @@ Use `-f/--file <path>` to point at a different pipeline file.
 | --- | --- |
 | 0 | Done |
 | 1 | Failed, or validation/config error |
-| 2 | Parked: an item needs a human (for example a loop ran out of iterations) |
+| 2 | Parked: an item needs a human (a gate is waiting, or a loop ran out of iterations) |
 | 64 | Usage error |
 | 130 | Cancelled |
 
@@ -116,6 +159,7 @@ Use `-f/--file <path>` to point at a different pipeline file.
 | `whiletrue.lock` | Plugin version pins (commit it) |
 | `.whiletrue/sessions/` | Per-step files for interactive agents: prompt, system note, MCP config |
 | `.whiletrue/learnings.jsonl` | Notes agents recorded with `whiletrue_learn` |
+| `.whiletrue/state.db` also holds | parks and decisions, comments and replies, steers, the effect journal and proposed learnings |
 
 ## Safety defaults
 

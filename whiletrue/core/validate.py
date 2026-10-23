@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from whiletrue.core.config import PipelineConfig, PipelineNode, SourceLoc
 from whiletrue.core.module import ConfigIssue, PortSpec, ValidateContext
 from whiletrue.core.registry import Registry
+from whiletrue.core.source import SourceError, source_spec
 
 Severity = Literal["error", "warning"]
 
@@ -42,6 +43,17 @@ def validate_pipeline(
     """
     vctx = ValidateContext(cwd=cwd if cwd is not None else os.getcwd(), registry=registry)
     out: list[Diagnostic] = []
+    try:
+        source = source_spec(config.extra)
+    except SourceError as error:
+        out.append(Diagnostic("error", str(error), config.root.id, config.root.loc))
+    else:
+        if source is not None and registry.get_provider("source", source[0]) is None:
+            out.append(
+                Diagnostic(
+                    "error", f'Unknown source "{source[0]}"', config.root.id, config.root.loc
+                )
+            )
 
     def push(node: PipelineNode, severity: Severity, message: str) -> None:
         out.append(Diagnostic(severity, message, node.id, node.loc))

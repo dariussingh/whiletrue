@@ -26,6 +26,8 @@ class Recording:
     #: Recorded terminal state per item id.
     item_states: dict[str, str]
     steps: ReplayData
+    #: The chain of resumes this run belongs to (its own id for a fresh run).
+    lineage: str = ""
 
 
 class ReplayError(Exception):
@@ -40,8 +42,11 @@ def load_recording(store: StateStore, run_id: str) -> Recording:
     steps: ReplayData = {
         (s.item_id, s.node_path, s.attempt): (s.port, s.output)
         for s in store.list_steps(run_id)
-        if s.port is not None
+        # A step that parked for a person must run again when its run is resumed.
+        if s.port is not None and s.port != "needs_human"
     }
+    started = store.list_events(run_id, type="run.started")
+    lineage = str(started[0].data.get("lineage", run_id)) if started else run_id
     return Recording(
         run_id=run.id,
         status=run.status,
@@ -49,4 +54,5 @@ def load_recording(store: StateStore, run_id: str) -> Recording:
         items=[RunItem(i.id, i.payload) for i in records],
         item_states={i.id: i.state for i in records},
         steps=steps,
+        lineage=lineage,
     )

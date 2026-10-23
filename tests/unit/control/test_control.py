@@ -96,6 +96,25 @@ async def test_sequence_returns_the_last_value_and_ok_for_an_empty_sequence() ->
     assert (empty.state, empty.port) == ("done", "ok")
 
 
+async def test_tap_runs_its_children_but_passes_its_own_input_through() -> None:
+    t = Harness()
+    t.scripts["a"] = [Emit("ok", "A")]
+    t.scripts["side"] = [Emit("ok", "side result")]
+    t.scripts["c"] = [Emit("ok", "C")]
+    await t.run(
+        "pipeline:\n  - step: { name: a }\n  - tap: { do: [ { step: { name: side } } ] }\n"
+        "  - step: { name: c }\n"
+    )
+    assert t.inputs == [None, "A", "A"]  # side saw A; c saw A, not "side result"
+
+
+async def test_tap_propagates_a_failing_child() -> None:
+    t = Harness()
+    t.scripts["side"] = [Emit("fail", {"error": "no"})]
+    result = await t.run("pipeline:\n  - tap: { do: [ { step: { name: side } } ] }\n")
+    assert (result.items[0].port, result.items[0].value) == ("fail", {"error": "no"})
+
+
 async def test_sequence_stops_when_cancelled() -> None:
     t = Harness()
     signal = AbortSignal()
@@ -245,6 +264,25 @@ pipeline:
     )
     assert result.items[0].state == "done"
     assert t.inputs == [None, {"error": "red"}, "patched", "green"]
+
+
+async def test_a_wired_to_step_is_a_branch_that_never_runs_by_falling_through() -> None:
+    t = Harness()
+    t.scripts["check"] = [Emit("ok", "green")]
+    result = await t.run(
+        """
+pipeline:
+  - id: check
+    step: { name: check }
+    wires: { fail: fix }
+  - id: fix
+    step: { name: fix }
+  - id: done
+    step: { name: done }
+"""
+    )
+    assert result.items[0].state == "done"
+    assert t.inputs == [None, "green"]  # check, then done: fix was skipped
 
 
 async def test_wires_that_cycle_forever_are_cut_off() -> None:

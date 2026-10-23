@@ -107,6 +107,7 @@ class PullRequest(_Strict):
     branch: str
     base: str | None = None
     title: str | None = None
+    repo: str | None = None
 
 
 class Verdict(_Strict):

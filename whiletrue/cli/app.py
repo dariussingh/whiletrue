@@ -5,13 +5,13 @@ import json
 import os
 import signal as signal_module
 import sys
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from whiletrue.abort import AbortSignal
-from whiletrue.claude_code import PaneHost
+from whiletrue.cli import gates
+from whiletrue.cli.common import EXIT, Io
 from whiletrue.cli.registry import RegistryOptions, create_default_registry, load_plugins
 from whiletrue.cli.templates import RALPH_AGENT, RALPH_PIPELINE
 from whiletrue.core import (
@@ -23,6 +23,7 @@ from whiletrue.core import (
     Registry,
     ReplayError,
     check_lock,
+    fetch_items,
     format_diagnostic,
     has_errors,
     hash_pipeline,
@@ -37,21 +38,6 @@ from whiletrue.core import (
 from whiletrue.store_sqlite import SqliteStore
 from whiletrue.tmux import TmuxController, session_name
 
-
-@dataclass
-class Io:
-    cwd: str
-    out: Callable[[str], object]
-    err: Callable[[str], object]
-    signal: AbortSignal | None = None
-    #: The project's tmux controller; defaults to the real one (tests inject a fake).
-    tmux: TmuxController | None = None
-    #: Replaces this process with the given argv (tmux attach); defaults to `os.execvp`.
-    attach: Callable[[list[str]], object] | None = None
-    #: Where interactive agents run; defaults to tmux panes (tests inject a plain-process host).
-    pane_host: PaneHost | None = None
-
-
 USAGE = """whiletrue — run configurable loops around coding agents
 
 Usage: whiletrue <command> [options]
@@ -65,23 +51,21 @@ Commands:
   replay [run]      Re-run a recorded run's logic without calling agents or tools
   lock              Pin the plugin versions in use to whiletrue.lock
   attach            Attach to the project's tmux session (live agent panes)
+  panel             The control panel (tmux window 0): items, state, who they wait for
+  resume [run]      Continue a parked run (a decided gate lets its item through)
+  approve <item>    Approve the gate an item is parked at   [--note, --step]
+  reject <item>     Reject it with a reason                 --note "what to change"
+  comment <item> "text"   Leave a comment the pipeline must answer
+  history <item>    The item's timeline: parks, decisions, comments, replies, steers
+  learnings [approve|reject <id>]   Review lessons proposed by history.distill
 
 Options:
   -f, --file <path> Pipeline file (default: whiletrue.yaml)
   --force           init: overwrite existing files
+  -m, --note <text> approve/reject: the reason
+  --step <id>       approve/reject: which gate, when an item waits at several
   -h, --help        Show this help
 """
-
-
-class Exit:
-    ok = 0
-    failed = 1
-    parked = 2
-    usage = 64
-    cancelled = 130
-
-
-EXIT = Exit()
 
 
 @dataclass
@@ -102,7 +86,7 @@ def _load(io: Io, file: str, *, check_pins: bool = True) -> _Loaded | int:
         io.err(f"Cannot load {file}: {error}\n")
         return EXIT.failed
     registry = create_default_registry(
-        RegistryOptions(project_dir=str(path.parent), pane_host=io.pane_host)
+        RegistryOptions(project_dir=str(path.parent), pane_host=io.pane_host, github=io.github)
     )
     try:
         load_plugins(registry, config.uses, str(path.parent))
@@ -174,6 +158,11 @@ async def _run(io: Io, file: str) -> int:
             io.out(f"[{level}] {message}\n")
 
     try:
+        try:
+            items = await fetch_items(loaded.registry, loaded.config.extra, loaded.cwd)
+        except Exception as error:
+            io.err(f"Cannot fetch items: {error}\n")
+            return EXIT.failed
         result = await run_pipeline(
             registry=loaded.registry,
             config=loaded.config,
@@ -182,6 +171,7 @@ async def _run(io: Io, file: str) -> int:
             signal=io.signal,
             log=log,
             lockfile=_lock_hash(loaded.cwd),
+            items=items,
         )
         io.out(f"run {result.run_id}: {result.status}\n")
         for item in result.items:
@@ -261,6 +251,75 @@ async def _attach(io: Io) -> int:
     return EXIT.ok
 
 
+async def _resume(io: Io, file: str, run_id: str | None) -> int:
+    """Continues a parked run: recorded steps are replayed, the rest run for real."""
+    db_path = Path(io.cwd) / ".whiletrue" / "state.db"
+    if not db_path.exists():
+        io.err("No runs yet (.whiletrue/state.db not found)\n")
+        return EXIT.failed
+    loaded = _load(io, file)
+    if isinstance(loaded, int):
+        return loaded
+    if not _validated(io, loaded):
+        return EXIT.failed
+    store = SqliteStore(db_path)
+    try:
+        if run_id is None:
+            latest = store.latest_run()
+            run_id = latest.id if latest else ""
+        try:
+            recording = load_recording(store, run_id)
+        except ReplayError as error:
+            io.err(f"{error}\n")
+            return EXIT.failed
+        if recording.status != "parked":
+            io.err(f"Run {run_id} is {recording.status}, not parked: nothing to resume\n")
+            return EXIT.failed
+
+        def log(level: str, message: str, data: object = None) -> None:
+            if level != "debug":
+                io.out(f"[{level}] {message}\n")
+
+        result = await run_pipeline(
+            registry=loaded.registry,
+            config=loaded.config,
+            store=store,
+            cwd=loaded.cwd,
+            signal=io.signal,
+            log=log,
+            lockfile=_lock_hash(loaded.cwd),
+            items=recording.items,
+            replay=recording.steps,
+            resume=True,
+            lineage=recording.lineage,
+        )
+        io.out(f"resumed {recording.run_id} as run {result.run_id}: {result.status}\n")
+        for item in result.items:
+            io.out(f"  {item.item_id}: {item.state} ({item.port})\n")
+        return {
+            "done": EXIT.ok,
+            "parked": EXIT.parked,
+            "cancelled": EXIT.cancelled,
+        }.get(result.status, EXIT.failed)
+    finally:
+        store.close()
+
+
+async def _panel(io: Io) -> int:  # pragma: no cover (interactive terminal loop)
+    from whiletrue.cli.panel import run_panel  # noqa: PLC0415
+
+    store = gates.open_store(io)
+    if store is None:
+        return EXIT.failed
+    tmux = io.tmux or TmuxController(
+        session_name(io.cwd), binary=os.environ.get("WHILETRUE_TMUX_BIN", "tmux")
+    )
+    try:
+        return await run_panel(io, store, tmux)
+    finally:
+        store.close()
+
+
 def _lock_hash(cwd: str) -> str | None:
     path = Path(cwd) / LOCK_FILE
     return sha256_file(path) if path.is_file() else None
@@ -304,6 +363,14 @@ def _status(io: Io, run_id: str | None) -> int:
                 port = f"  {s.port}" if s.port else ""
                 error = f"  — {s.error}" if s.error else ""
                 io.out(f"    {s.node_path}#{s.attempt}  {s.status}{port}{error}\n")
+        waiting = store.list_parks(undecided_only=True)
+        if waiting:
+            io.out("waiting for a person:\n")
+            for park in waiting:
+                io.out(
+                    f"  {park.item_id}  {park.what} at {park.node_path}  "
+                    f"(whiletrue approve {park.item_id} | reject {park.item_id} --note ...)\n"
+                )
         return EXIT.ok
     finally:
         store.close()
@@ -315,6 +382,8 @@ class _Args:
     file: str = "whiletrue.yaml"
     force: bool = False
     help: bool = False
+    note: str | None = None
+    step: str | None = None
 
 
 def _parse_args(argv: list[str]) -> _Args:
@@ -328,6 +397,20 @@ def _parse_args(argv: list[str]) -> _Args:
             args.file = value
         elif arg.startswith("--file="):
             args.file = arg.split("=", 1)[1]
+        elif arg in ("-m", "--note", "--step"):
+            value = next(it, None)
+            if value is None:
+                raise ValueError(f"Option '{arg}' argument missing")
+            if arg == "--step":
+                args.step = value
+            else:
+                args.note = value
+        elif arg.startswith(("--note=", "--step=")):
+            name, _, value = arg.partition("=")
+            if name == "--step":
+                args.step = value
+            else:
+                args.note = value
         elif arg == "--force":
             args.force = True
         elif arg in ("-h", "--help"):
@@ -378,6 +461,24 @@ async def main(argv: list[str], io: Io) -> int:
             return await _replay(io, args.file, rest[0] if rest else None)
         case "attach":
             return await _attach(io)
+        case "panel":
+            return await _panel(io)
+        case "resume":
+            return await _resume(io, args.file, rest[0] if rest else None)
+        case "approve":
+            return gates.decide(io, "approved", rest[0] if rest else None, args.note, args.step)
+        case "reject":
+            return gates.decide(io, "rejected", rest[0] if rest else None, args.note, args.step)
+        case "comment":
+            return gates.comment(
+                io, rest[0] if rest else None, " ".join(rest[1:]) if len(rest) > 1 else None
+            )
+        case "history":
+            return gates.history(io, rest[0] if rest else None)
+        case "learnings":
+            return gates.learnings(
+                io, rest[0] if rest else None, rest[1] if len(rest) > 1 else None
+            )
         case "lock":
             return _lock(io, args.file)
         case "status":

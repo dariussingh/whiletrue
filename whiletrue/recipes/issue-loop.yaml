@@ -1,0 +1,59 @@
+# One issue, open to merged: implement on a branch, open a PR, let a person review it while every
+# comment gets an answer, fix what they reject, then merge after a final approval.
+#
+#   source: { github_issues: { milestone: M3 } }      # items are issues; blockers come first
+#   pipeline:
+#     composite: { uses: "recipe:issue-loop", params: { implementer: ./agents/implement.md, ... } }
+composite: issue-loop
+params:
+  implementer: { required: true }  # agent file: implements the issue and commits
+  fixer: { required: true }        # agent file: fixes what a reviewer rejected ({{input}} has the note)
+  responder: { required: true }    # agent file that answers comments (see recipe:review-respond)
+  gate: { default: pytest }        # must pass before a PR opens, after fixes and after replies
+  base: { default: main }
+  repo: { default: "" }            # owner/name; empty means "read it from the origin remote"
+  merge_method: { default: squash }
+  lock: { default: "repo:main" }
+ports: { in: Any, out: Any }
+pipeline:
+  - shell: { run: "git checkout -B wt/{{item.id}}" }
+  - id: impl
+    retry: { max: 3, feedback: true }
+    do:
+      - agent: { uses: "{{params.implementer}}" }
+      - gate.shell: { run: "{{params.gate}}" }
+  - id: pr
+    github.open_pr:
+      repo: "{{params.repo}}"
+      head: "wt/{{item.id}}"
+      base: "{{params.base}}"
+      closes: "{{item.number}}"
+  - id: review
+    human.approve:
+      what: pr
+      wake: { any: [cli, { github.pr_review: any }] }
+    do:
+      - composite:
+          uses: "recipe:review-respond"
+          params: { responder: "{{params.responder}}", gate: "{{params.gate}}" }
+    wires: { rejected: fix }
+  - id: sync
+    github.sync_base: { base: "{{params.base}}" }
+  - id: merge_ok
+    human.approve:
+      what: merge
+      wake: { any: [cli, github.pr_merged] }
+    do:
+      - composite:
+          uses: "recipe:review-respond"
+          params: { responder: "{{params.responder}}", gate: "{{params.gate}}" }
+  - id: merge
+    github.merge: { repo: "{{params.repo}}", method: "{{params.merge_method}}", lock: "{{params.lock}}" }
+  # Reached only by a rejection: fix it, push, and ask for the review again.
+  - id: fix
+    tap:
+      do:
+        - agent: { uses: "{{params.fixer}}" }
+        - gate.shell: { run: "{{params.gate}}", pass_input: true }
+        - shell: { run: "git push --force-with-lease origin HEAD" }
+    wires: { ok: review }

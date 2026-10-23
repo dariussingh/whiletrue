@@ -28,6 +28,7 @@ whiletrue/
     module.py caps.py outcomes.py registry.py runner.py     the model and plugin API
     config.py composite.py template.py expr.py duration.py  YAML, composites, templates, CEL
     validate.py                                             static validation
+    history.py wake.py comments.py source.py                parks/comments/effects records, wake, providers
     runtime.py context.py events.py                         scheduler, scopes, event bus
     store.py memory_store.py lock.py replay.py              state protocol, lock file, replay
   control/        strategies: sequence, loop, map, parallel, switch, retry, try
@@ -36,10 +37,13 @@ whiletrue/
     endpoint.py   loopback HTTP endpoint the plugin posts to        session.py  per-pane outcome logic
     panes.py      PaneHost: tmux or plain subprocess                transcript.py  usage/cost estimate
     plugin/       the bundled Claude Code plugin: hooks.json, hook.py, mcp_server.py (stdlib only)
-  tmux/           TmuxController: session, windows, tiled pane grid, attach
+  github/         GitHubClient (gh CLI + in-memory), plugin: source, open_pr/sync_base/merge, wake, comments
+  opencode/       the opencode runner
+  tmux/           TmuxController: session, windows, tiled pane grid, attach, find/focus pane
   store_sqlite/   SQLite StateStore and migrations
-  recipes/        ralph.yaml, review-pass.yaml (loaded by `composite: recipe:<name>`)
-  cli/            argument parsing, commands, default registry, init templates
+  recipes/        ralph, review-pass, review-respond, issue-loop (`composite: recipe:<name>`)
+  cli/            app.py (commands), gates.py (approve/reject/comment/history/learnings),
+                  panel.py (tmux control panel), registry.py, common.py, init templates
 tests/unit/<package>/    one test module per source module (never beside the source)
 tests/integration/       CLI, recipe and interactive-run tests against a fake `claude`
 tests/fixtures/          stand-in `claude` scripts (excluded from lint and typecheck)
@@ -54,6 +58,7 @@ docs/                    design, plan, todo, reference, guides
 2. `validate_pipeline` resolves modules, validates configs and CEL expressions, checks wiring caps and the safety rules.
 3. `run_pipeline` runs each item through the tree. Every module execution goes through one `execute` function that renders templates, validates config, checks the cache or replay data, runs the module, validates the output cap, and persists the step and events.
 4. Strategies run children only via `ctx.run`, so every child is recorded.
+5. A run that parks can be continued: `resume` loads the run's recording, replays every recorded non-`pure` step (except those that parked) and runs the rest for real in a new run of the same *lineage*. Gates find their park by (item, node, lineage, Nth execution), side effects with `journal=True` consult the effect journal, and the replay keys `(item, node, attempt)` stay valid because attempt counters restart in each run.
 
 ## Workflow
 

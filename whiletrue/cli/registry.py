@@ -20,6 +20,7 @@ from whiletrue.claude_code import (
 )
 from whiletrue.control import control_plugin
 from whiletrue.core import Plugin, Registry
+from whiletrue.github import GitHubClient, github_plugin
 from whiletrue.tmux import TmuxController, session_name
 
 #: Third-party plugins advertise themselves under this entry-point group.
@@ -33,10 +34,8 @@ def whiletrue_version() -> str:
         return "0.0.0"
 
 
-#: Window 0 of the tmux session: the run's status, refreshed every couple of seconds.
-_CONTROL_PANEL = (
-    f"while true; do clear; {shlex.quote(sys.executable)} -m whiletrue status; sleep 2; done"
-)
+#: Window 0 of the tmux session: the live control panel.
+_CONTROL_PANEL = f"{shlex.quote(sys.executable)} -m whiletrue panel"
 
 
 @dataclass
@@ -47,6 +46,8 @@ class RegistryOptions:
     project_dir: str | None = None
     #: Where interactive agents run; defaults to panes in the project's tmux session.
     pane_host: PaneHost | None = None
+    #: The GitHub client; defaults to the `gh` CLI.
+    github: GitHubClient | None = None
 
 
 def create_default_registry(options: RegistryOptions | None = None) -> Registry:
@@ -56,6 +57,7 @@ def create_default_registry(options: RegistryOptions | None = None) -> Registry:
     version = whiletrue_version()
     registry.use(control_plugin, version)
     registry.use(basics_plugin, version)
+    registry.use(github_plugin(opts.github), version)
     command = opts.claude_command or os.environ.get("WHILETRUE_CLAUDE_BIN") or "claude"
     project = opts.project_dir or os.getcwd()
     host = opts.pane_host or TmuxPaneHost(

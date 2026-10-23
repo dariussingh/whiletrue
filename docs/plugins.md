@@ -131,6 +131,22 @@ A runner executes an agent prompt: `id`, `capabilities` (`interactive`, `structu
 
 The interactive runner (`whiletrue/claude_code/interactive.py`) shows a runner with a live UI: it launches `claude` in a pane through a `PaneHost` (tmux in the CLI, plain subprocesses in tests), receives the bundled plugin's hook posts and MCP tool calls through the loopback `EventEndpoint`, and decides outcomes in `StepSession`. To test one, point it at a stand-in `claude` that posts the same hooks (see `tests/fixtures/fake_interactive_claude.py`).
 
+## Providers
+
+`api.register_provider(kind, name, provider)` adds an integration point. Kinds:
+
+| Kind | Interface | Used by |
+| --- | --- | --- |
+| `source` | `async fetch(config, cwd) -> list[RunItem]` | the top-level `source:` block |
+| `comments` | `async fetch(ctx) -> list[IncomingComment]` and `async reply(comment, body, ctx) -> str \| None` | `human.approve` (new comments) and `comments.reply`. Never resolve threads |
+| `wake` | `async check(arg, ctx) -> WakeResult \| None` | `wake:` conditions of `human.approve` |
+
+A wake checker looks at the world and returns `WakeResult("approved" \| "rejected", note, by=...)` or None to keep waiting; `ctx` has the park, the item and the gate's input. See `whiletrue/basics/wake.py` (`file_exists`, `timer`) and `whiletrue/github/plugin.py`.
+
+## Side effects that must not repeat
+
+Set `journal=True` on a `side-effect` action and give it an `idempotency_key` that names the *effect*, not the run (`github.open_pr:owner/name:wt/12`). The runtime then records the result under that key and returns it instead of running again, across resumes and later runs. Failures are never recorded. The step context also offers `ctx.store` (parks, comments, effects), `ctx.now()`, `ctx.watch`, `ctx.lineage` and `ctx.locks.hold("name")` (a named lock: `async with ctx.locks.hold("repo:main"):`).
+
 ## Caps
 
 `api.register_cap("Ticket", TicketModel)` registers a PascalCase name backed by anything pydantic can validate. Caps with the same name are compatible; `Any` matches everything.

@@ -24,6 +24,8 @@ class ShellConfig(BaseModel):
     cwd: str | None = None
     env: dict[str, str] | None = None
     timeout: str | int | float | None = None
+    #: On success, pass the step's input on instead of the command's output (for gates in a chain).
+    pass_input: bool = False
 
 
 class GateTestsConfig(ShellConfig):
@@ -42,7 +44,7 @@ def _make_shell[Cfg: ShellConfig](
             return [ConfigIssue("error", str(error))]
         return []
 
-    async def run(_input: PortValues, ctx: StepContext[Cfg]) -> Emit:
+    async def run(input: PortValues, ctx: StepContext[Cfg]) -> Emit:
         cfg = ctx.config
         result = await run_command(
             "sh",
@@ -53,7 +55,7 @@ def _make_shell[Cfg: ShellConfig](
             timeout_ms=None if cfg.timeout is None else parse_duration(cfg.timeout),
         )
         if result.code == 0:
-            return Emit("ok", result.stdout)
+            return Emit("ok", input.get("in") if cfg.pass_input else result.stdout)
         if result.timed_out:
             reason = "timed out"
         elif result.aborted:
@@ -75,7 +77,7 @@ def _make_shell[Cfg: ShellConfig](
             config=config_cls,
             ports=Ports(
                 inputs=[PortSpec("in", "Any")],
-                outputs=[PortSpec("out", "Text")],
+                outputs=[PortSpec("out", "Any")],
             ),
             effects=effects,
             validate=validate,  # pyright: ignore[reportArgumentType]

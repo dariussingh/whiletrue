@@ -1,0 +1,22 @@
+# Answer review comments. Run it as the `do:` of a `human.approve` gate: each time new comments
+# arrive the gate hands them over as {comments: [...], input: ...}, and this recipe
+#   1. has the responder agent classify each comment (question, change request, nit, approval,
+#      out of scope), make any code changes, and return one reply per comment;
+#   2. checks the tests still pass (retrying the agent with the failure as feedback);
+#   3. posts each reply in its own thread, prefixed [whiletrue] and only once;
+#   4. fails while any comment is still unanswered.
+# Agents reply but never resolve a human's thread; resolving is yours.
+composite: review-respond
+params:
+  responder: { required: true }   # agent file whose `outputs` is { replies: CommentReplies }
+  gate: { default: pytest }       # shell command that must pass after the changes
+  max: { default: 2 }             # attempts for the responder before the item parks
+ports: { in: Any, out: Any }
+pipeline:
+  - id: respond
+    retry: { max: "{{params.max}}", feedback: true }
+    do:
+      - agent: { uses: "{{params.responder}}" }
+      - gate.shell: { run: "{{params.gate}}", pass_input: true }
+  - comments.reply: {}
+  - gate.comments_answered: {}

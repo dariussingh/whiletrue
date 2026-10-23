@@ -13,7 +13,14 @@ from pydantic import ValidationError
 
 from whiletrue.abort import AbortSignal
 from whiletrue.core.config import PipelineConfig, PipelineNode
-from whiletrue.core.context import CompositeContext, Logger, Scope, create_step_context
+from whiletrue.core.context import (
+    CompositeContext,
+    Locks,
+    Logger,
+    Scope,
+    StepContext,
+    create_step_context,
+)
 from whiletrue.core.events import EventBus
 from whiletrue.core.lock import collect_file_hashes
 from whiletrue.core.module import Emit, PortValues
@@ -27,6 +34,8 @@ from whiletrue.core.template import render_deep
 class RunItem:
     id: str
     payload: Any = None
+    #: Ids of items that must be done first; the item waits (stays `pending`) until they are.
+    depends_on: list[str] = field(default_factory=lambda: [])
 
 
 @dataclass
@@ -97,6 +106,12 @@ async def run_pipeline(
     lockfile: str | None = None,
     #: Serve recorded results instead of running modules with effects (see `core.replay`).
     replay: dict[tuple[str, str, int], tuple[str, Any]] | None = None,
+    #: With `replay`: run steps that have no recording instead of failing (continue a parked run).
+    resume: bool = False,
+    #: Gates wait for decisions instead of parking; defaults to the pipeline's `on_idle: watch`.
+    watch: bool | None = None,
+    #: The first run of a chain of resumes; a gate's parks belong to it. Defaults to this run.
+    lineage: str | None = None,
 ) -> RunResult:
     """Sequential scheduler: runs each item through the module tree and persists every step.
 
@@ -109,11 +124,16 @@ async def run_pipeline(
     log = log if log is not None else _noop_log
     items = items if items is not None else [RunItem("main")]
     policy = OutcomePolicy(on_fail=config.on_fail)
+    watching = config.on_idle == "watch" if watch is None else watch
+    lineage = lineage if lineage is not None else run_id
+    locks = Locks()
 
     pipeline_hash = hash_pipeline(config)
     store.create_run(id=run_id, pipeline_hash=pipeline_hash, started_at=now(), lockfile=lockfile)
     unsubscribe = bus.subscribe(store.append_event)
-    bus.emit("run.started", run_id, {"pipeline": config.name, "items": len(items)})
+    bus.emit(
+        "run.started", run_id, {"pipeline": config.name, "items": len(items), "lineage": lineage}
+    )
     bus.emit(
         "run.hashes",
         run_id,
@@ -131,11 +151,24 @@ async def run_pipeline(
                 source_key=item.id,
                 state="ready",
                 payload=item.payload,
-                depends_on=[],
+                depends_on=list(item.depends_on),
             )
         )
 
-    for item in items:
+    finished: dict[str, ItemState] = {}
+    for item in _in_dependency_order(items):
+        blocked_by = [d for d in item.depends_on if finished.get(d) != "done"]
+        if blocked_by:
+            finished[item.id] = "pending"
+            store.set_item_state(run_id, item.id, "pending")
+            bus.emit(
+                "item.state",
+                run_id,
+                {"state": "pending", "blocked_by": blocked_by},
+                item_id=item.id,
+            )
+            outcomes.append(ItemOutcome(item.id, "pending", "skip", {"blocked_by": blocked_by}))
+            continue
         item_scope = Scope()
         item_scope.set("run", {"id": run_id})
         #: Agent session ids shared across this item's steps (`session: item` or a name).
@@ -234,6 +267,11 @@ async def run_pipeline(
                     "signal": signal,
                     "record_cost": record_cost,
                     "step_key": f"{run_id}:{item_id}:{node.id}",
+                    "store": store,
+                    "now": now,
+                    "watch": watching,
+                    "lineage": lineage,
+                    "locks": locks,
                 }
                 if resolved.kind == "action":
                     cache_key = (
@@ -242,12 +280,17 @@ async def run_pipeline(
                         else None
                     )
                     hit = store.cache_get(cache_key) if cache_key else None
+                    replaying = (
+                        replay is not None
+                        and module.effects != "pure"
+                        and not scope.get("no_replay")
+                    )
                     recorded = (
                         replay.get((item_id, node.id, attempt))
-                        if replay is not None and module.effects != "pure"
+                        if replay is not None and replaying
                         else None
                     )
-                    if replay is not None and module.effects != "pure" and recorded is None:
+                    if replaying and recorded is None and not resume:
                         return fail(f"Replay diverged: no recorded result for {node.id}#{attempt}")
                     if recorded is not None:
                         emit = Emit(recorded[0], recorded[1])
@@ -268,7 +311,8 @@ async def run_pipeline(
                             step_id=step_id,
                         )
                     else:
-                        emit = await module.run(input, create_step_context(parsed, **base))
+                        step_context = create_step_context(parsed, **base)
+                        emit = await _run_action(module, input, step_context, bus, step_id)
                         if cache_key and emit.port == "ok":
                             store.cache_put(
                                 cache_key, {"port": emit.port, "value": emit.value}, now()
@@ -301,6 +345,11 @@ async def run_pipeline(
                         signal=step_ctx.signal,
                         record_cost=step_ctx.record_cost,
                         step_key=step_ctx.step_key,
+                        store=store,
+                        now=now,
+                        watch=watching,
+                        lineage=lineage,
+                        locks=locks,
                         policy=policy,
                         run=run_child,
                     )
@@ -324,6 +373,7 @@ async def run_pipeline(
         else:
             state = "done"
         set_state(state)
+        finished[item.id] = state
         outcomes.append(ItemOutcome(item.id, state, emit.port, emit.value))
 
     states = {o.state for o in outcomes}
@@ -333,13 +383,65 @@ async def run_pipeline(
         else "failed"
         if "failed" in states
         else "parked"
-        if "parked" in states
+        if states & {"parked", "pending"}
         else "done"
     )
     store.finish_run(run_id, status, now())
     bus.emit("run.finished", run_id, {"status": status})
     unsubscribe()
     return RunResult(run_id=run_id, status=status, items=outcomes)
+
+
+async def _run_action(
+    module: Any, input: PortValues, ctx: StepContext[Any], bus: EventBus, step_id: int
+) -> Emit:
+    """Runs an action; journaled effects are looked up first and recorded after they succeed."""
+    if not (module.journal and module.idempotency_key is not None) or ctx.store is None:
+        return await module.run(input, ctx)
+    store, run_id, now = ctx.store, ctx.run_id, ctx.now
+    key = module.idempotency_key(input, ctx)
+    known = store.effect_get(key)
+    if known is not None and known.status == "done":
+        bus.emit(
+            "step.journaled",
+            run_id,
+            {"node": ctx.node_id, "key": key},
+            item_id=ctx.item_id,
+            step_id=step_id,
+        )
+        recorded: dict[str, Any] = known.ref
+        return Emit(recorded["port"], recorded["value"])
+    store.effect_put(key, run_id=run_id, status="started", ref=None, created_at=now())
+    emit = await module.run(input, ctx)
+    if emit.port == "ok":
+        store.effect_put(
+            key,
+            run_id=run_id,
+            status="done",
+            ref={"port": emit.port, "value": emit.value},
+            created_at=now(),
+        )
+    return emit
+
+
+def _in_dependency_order(items: list[RunItem]) -> list[RunItem]:
+    """Items in input order, except that each comes after the items it depends on."""
+    by_id = {i.id: i for i in items}
+    ordered: list[RunItem] = []
+    placed: set[str] = set()
+
+    def place(item: RunItem, trail: tuple[str, ...]) -> None:
+        if item.id in placed or item.id in trail:
+            return
+        for dep in item.depends_on:
+            if dep in by_id:
+                place(by_id[dep], (*trail, item.id))
+        placed.add(item.id)
+        ordered.append(item)
+
+    for item in items:
+        place(item, ())
+    return ordered
 
 
 def _validation_summary(error: ValueError) -> str:

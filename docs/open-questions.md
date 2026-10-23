@@ -6,7 +6,7 @@
 | 2   | How accurate is a budget estimate from transcript usage; is a soft cap acceptable for interactive steps? **Estimate built (M2)** from transcript usage and per-family list prices; a live run priced a trivial step at $0.11. Accuracy against real billing is still unmeasured. | Measure |
 | 3   | After a whiletrue crash: re-attach to the still-running tmux pane, or restart with `claude --resume`?                                                                           | M3          |
 | 4   | For `session: item` across retries, how does resume behave when the working directory has changed?                                                                              | M3          |
-| 5   | Convention for spec links in issue bodies (e.g. `spec: specs/m3/api.md#L40-L88`) so the knowledge provider can parse them                                                       | M3/M4       |
+| 5   | ~~Convention for spec links in issue bodies~~ **Resolved (M4):** a line `spec: path[#Lstart-Lend]` (also `specs:`, several links per line). Parsed into the item's `spec_refs`. See `whiletrue/github/specs.py`. | Done        |
 | 6   | ~~Expression language for `until:` and templates~~ **Resolved: CEL** behind an `Expr` interface (`parse`, `check(schema)`, `eval(scope)`), pending a half-day spike. See below. | M1          |
 | 7   | ~~License: MIT or Apache-2.0~~ **Resolved: MIT**                                                                                                                                | Done        |
 | 8   | ~~Claim npm org / GitHub org~~ **Superseded by OQ-9:** no npm packages. The PyPI name `whiletrue` is free (checked 2026-10-16); CLI binary stays `whiletrue`. No GitHub org needed. | Done        |

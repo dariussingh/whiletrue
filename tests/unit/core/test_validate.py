@@ -176,3 +176,22 @@ def test_formats_diagnostics() -> None:
     assert re.fullmatch(
         r'w\.yaml:1:\d+: error: Unknown module "nope".*\[root\.0\]', format_diagnostic(d[0])
     )
+
+
+def test_validate_checks_the_source_block() -> None:
+    from whiletrue.basics import basics_plugin
+    from whiletrue.control import control_plugin
+    from whiletrue.core import Registry, parse_pipeline, validate_pipeline
+
+    registry = Registry()
+    registry.use(control_plugin)
+    registry.use(basics_plugin)
+
+    def messages(text: str) -> list[str]:
+        return [d.message for d in validate_pipeline(parse_pipeline(text, "t.yaml"), registry)]
+
+    body = "pipeline:\n  - set: { value: 1 }\n"
+    assert messages(f"source: {{ json: {{ path: items.json }} }}\n{body}") == []
+    assert messages(f"source: {{ nope: {{}} }}\n{body}") == ['Unknown source "nope"']
+    assert "exactly one provider" in messages(f"source: [a]\n{body}")[0]
+    assert "exactly one provider" in messages(f"source: {{ a: {{}}, b: {{}} }}\n{body}")[0]

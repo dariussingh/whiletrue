@@ -96,4 +96,37 @@ MIGRATIONS: tuple[str, ...] = (
     created_at INTEGER NOT NULL
   );
   """,
+    """
+  ALTER TABLE parks ADD COLUMN node_path TEXT NOT NULL DEFAULT '';
+  ALTER TABLE parks ADD COLUMN what TEXT NOT NULL DEFAULT '';
+  ALTER TABLE parks ADD COLUMN decision TEXT;
+  CREATE INDEX parks_by_item ON parks (item_id, node_path, run_id);
+
+  ALTER TABLE learnings ADD COLUMN status TEXT NOT NULL DEFAULT 'approved';
+
+  CREATE TABLE comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id TEXT NOT NULL,
+    source TEXT NOT NULL,
+    external_id TEXT NOT NULL,
+    thread TEXT,
+    author TEXT NOT NULL,
+    body TEXT NOT NULL,
+    url TEXT,
+    kind TEXT NOT NULL DEFAULT 'human',
+    answered INTEGER NOT NULL DEFAULT 0,
+    reply TEXT,
+    created_at INTEGER NOT NULL,
+    UNIQUE (item_id, source, external_id)
+  );
+
+  CREATE TABLE steers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    step TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  """,
 )

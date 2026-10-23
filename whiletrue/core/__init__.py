@@ -2,6 +2,14 @@
 
 from whiletrue.abort import AbortSignal
 from whiletrue.core.caps import CapError, CapRegistry, CapValidation, create_builtin_caps
+from whiletrue.core.comments import (
+    REPLY_PREFIX,
+    CommentsContext,
+    CommentsProvider,
+    IncomingComment,
+    sync_comments,
+    with_prefix,
+)
 from whiletrue.core.composite import expand_composites
 from whiletrue.core.config import (
     AgentDefinition,
@@ -20,6 +28,7 @@ from whiletrue.core.config import (
 )
 from whiletrue.core.context import (
     CompositeContext,
+    Locks,
     Resource,
     Scope,
     StepContext,
@@ -28,6 +37,15 @@ from whiletrue.core.context import (
 from whiletrue.core.duration import parse_duration
 from whiletrue.core.events import EventBus, WtEvent
 from whiletrue.core.expr import Expr, ExprError, parse_expr
+from whiletrue.core.history import (
+    CommentRecord,
+    Decision,
+    EffectRecord,
+    LearningRecord,
+    LearningStatus,
+    ParkRecord,
+    SteerRecord,
+)
 from whiletrue.core.lock import (
     LOCK_FILE,
     LockError,
@@ -75,6 +93,7 @@ from whiletrue.core.runner import (
     RunnerCapabilities,
 )
 from whiletrue.core.runtime import ItemOutcome, RunItem, RunResult, hash_pipeline, run_pipeline
+from whiletrue.core.source import SourceError, SourceProvider, fetch_items, source_spec
 from whiletrue.core.store import (
     ItemRecord,
     RunRecord,
@@ -83,11 +102,22 @@ from whiletrue.core.store import (
 )
 from whiletrue.core.template import TemplateError, render_deep, render_template
 from whiletrue.core.validate import Diagnostic, format_diagnostic, has_errors, validate_pipeline
+from whiletrue.core.wake import (
+    WakeChecker,
+    WakeCondition,
+    WakeContext,
+    WakeResult,
+    WakeSpec,
+    evaluate_wake,
+    parse_wake,
+    wake_to_dict,
+)
 
 __all__ = [
     "EFFECTS",
     "LOCK_FILE",
     "OUTCOME_PORTS",
+    "REPLY_PREFIX",
     "AbortSignal",
     "ActionModule",
     "AgentDefinition",
@@ -97,26 +127,36 @@ __all__ = [
     "CapError",
     "CapRegistry",
     "CapValidation",
+    "CommentRecord",
+    "CommentsContext",
+    "CommentsProvider",
     "CompositeContext",
     "CompositeDefinition",
     "ConfigError",
     "ConfigIssue",
+    "Decision",
     "Diagnostic",
     "Effect",
+    "EffectRecord",
     "Emit",
     "EmptyConfig",
     "EventBus",
     "Expr",
     "ExprError",
+    "IncomingComment",
     "ItemOutcome",
     "ItemRecord",
     "ItemState",
+    "LearningRecord",
+    "LearningStatus",
     "LockError",
+    "Locks",
     "MemoryStore",
     "ModuleDefinitionError",
     "OnFail",
     "OutcomePolicy",
     "ParamSpec",
+    "ParkRecord",
     "PipelineConfig",
     "PipelineNode",
     "Plugin",
@@ -138,13 +178,21 @@ __all__ = [
     "RunnerCapabilities",
     "Scope",
     "SimplePlugin",
+    "SourceError",
     "SourceLoc",
+    "SourceProvider",
     "StateStore",
+    "SteerRecord",
     "StepContext",
     "StepRecord",
     "Strategy",
     "TemplateError",
     "ValidateContext",
+    "WakeChecker",
+    "WakeCondition",
+    "WakeContext",
+    "WakeResult",
+    "WakeSpec",
     "WtEvent",
     "check_lock",
     "collect_file_hashes",
@@ -152,7 +200,9 @@ __all__ = [
     "create_step_context",
     "define_action",
     "define_strategy",
+    "evaluate_wake",
     "expand_composites",
+    "fetch_items",
     "format_diagnostic",
     "has_errors",
     "hash_pipeline",
@@ -168,12 +218,17 @@ __all__ = [
     "parse_duration",
     "parse_expr",
     "parse_pipeline",
+    "parse_wake",
     "read_lock",
     "render_deep",
     "render_template",
     "resolve_outcome",
     "run_pipeline",
     "sha256_file",
+    "source_spec",
+    "sync_comments",
     "validate_pipeline",
+    "wake_to_dict",
+    "with_prefix",
     "write_lock",
 ]

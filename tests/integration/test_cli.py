@@ -432,7 +432,12 @@ class TestLockFile:
         project(cli.dir)
         assert await cli("lock") == EXIT.ok
         pinned = json.loads((cli.dir / "whiletrue.lock").read_text())["plugins"]
-        assert set(pinned) == {"whiletrue.basics", "whiletrue.claude_code", "whiletrue.control"}
+        assert set(pinned) == {
+            "whiletrue.basics",
+            "whiletrue.claude_code",
+            "whiletrue.control",
+            "whiletrue.github",
+        }
         assert await cli("validate") == EXIT.ok
 
         (cli.dir / "whiletrue.lock").write_text(

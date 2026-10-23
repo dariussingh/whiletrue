@@ -179,6 +179,14 @@ async def _run(input: PortValues, ctx: StepContext[AgentConfig]) -> Emit:
     )
 
     def on_event(event: dict[str, Any]) -> None:
+        if event.get("kind") == "steer" and ctx.store is not None:
+            ctx.store.add_steer(
+                run_id=ctx.run_id,
+                item_id=ctx.item_id,
+                step=ctx.node_id,
+                prompt=str(event.get("prompt", "")),
+                created_at=ctx.now(),
+            )
         ctx.bus.emit(
             "agent.event",
             ctx.run_id,

@@ -163,6 +163,23 @@ class TmuxController:
                 return "dead" if dead.strip() == "1" else "running"
         return "gone"
 
+    async def find_pane(self, needle: str) -> PaneRef | None:
+        """The first agent pane whose title contains `needle` (an item id)."""
+        result = await self._exec(
+            ["list-panes", "-s", "-t", self.session, "-F", "#{pane_id} #{window_id} #{pane_title}"]
+        )
+        if result.code != 0:
+            return None
+        for line in result.out.splitlines():
+            pane_id, window_id, title = [*line.split(" ", 2), "", ""][:3]
+            if needle in title:
+                return PaneRef(pane_id, window_id)
+        return None
+
+    async def focus(self, pane: PaneRef) -> None:
+        await self._ok(["select-window", "-t", pane.window])
+        await self._ok(["select-pane", "-t", pane.id])
+
     async def keep_pane(self, pane: PaneRef, title: str) -> None:
         """`on_done: keep`: the pane stays on screen (with its output) after its process exits."""
         await self._ok(["set-option", "-p", "-t", pane.id, "remain-on-exit", "on"])

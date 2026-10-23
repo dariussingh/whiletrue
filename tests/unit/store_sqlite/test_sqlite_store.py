@@ -16,7 +16,7 @@ def store() -> Iterator[SqliteStore]:
 
 
 def test_creates_every_documented_table_via_migrations(store: SqliteStore) -> None:
-    assert store.schema_version() == 1
+    assert store.schema_version() == 2
     assert set(store.tables()) >= {
         "runs",
         "items",
@@ -37,7 +37,7 @@ def test_persists_across_reopen_and_does_not_rerun_migrations(tmp_path: Path) ->
     a.create_run(id="x", pipeline_hash="h", lockfile="lock", started_at=1)
     a.close()
     b = SqliteStore(path)
-    assert b.schema_version() == 1
+    assert b.schema_version() == 2
     run = b.get_run("x")
     assert run is not None
     assert (run.id, run.lockfile, run.status) == ("x", "lock", "running")

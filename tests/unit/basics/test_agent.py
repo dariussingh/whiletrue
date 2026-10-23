@@ -361,3 +361,21 @@ def test_validate_warns_that_bare_disables_whiletrues_hooks_on_interactive_runne
     assert [i.severity for i in issues] == ["warning"]
     assert "hooks" in issues[0].message
     assert validate(tmp_path, FakeRunner(), uses) == []
+
+
+async def test_a_steer_reported_by_the_runner_is_recorded_in_the_history(tmp_path: Path) -> None:
+    from whiletrue.core import MemoryStore
+
+    class Steered(FakeRunner):
+        async def run(self, request: AgentRequest, ctx: RunContext) -> AgentResult:
+            assert ctx.on_event is not None
+            ctx.on_event({"kind": "steer", "prompt": "use sqlite"})
+            return await super().run(request, ctx)
+
+    runner = Steered()
+    _, ctx, _ = setup(tmp_path, runner, agent(tmp_path, "st", ""))
+    store = MemoryStore()
+    ctx = dataclasses.replace(ctx, store=store, now=lambda: 77)
+    await agent_module.run({"in": "x"}, ctx)
+    [steer] = store.list_steers("item")
+    assert (steer.step, steer.prompt, steer.created_at) == ("node", "use sqlite", 77)

@@ -1,11 +1,11 @@
-"""Control-flow strategies: sequence, loop, map, parallel, switch, retry, try."""
+"""Control-flow strategies: sequence, tap, loop, map, parallel, switch, retry, try."""
 
 from whiletrue.control.chain import run_chain
 from whiletrue.control.loop import LoopConfig, loop_strategy
 from whiletrue.control.map_ import map_strategy
 from whiletrue.control.parallel import parallel_strategy
 from whiletrue.control.retry import retry_strategy, try_strategy
-from whiletrue.control.sequence import sequence_strategy
+from whiletrue.control.sequence import sequence_strategy, tap_strategy
 from whiletrue.control.switch import switch_strategy
 from whiletrue.core import PluginApi, SimplePlugin
 
@@ -18,6 +18,7 @@ def _register(api: PluginApi) -> None:
     api.register_strategy(switch_strategy)
     api.register_strategy(retry_strategy)
     api.register_strategy(try_strategy)
+    api.register_strategy(tap_strategy)
 
 
 control_plugin = SimplePlugin(name="whiletrue.control", register=_register)
@@ -32,5 +33,6 @@ __all__ = [
     "run_chain",
     "sequence_strategy",
     "switch_strategy",
+    "tap_strategy",
     "try_strategy",
 ]

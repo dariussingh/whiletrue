@@ -10,7 +10,7 @@ from whiletrue.core.caps import CapRegistry, create_builtin_caps
 from whiletrue.core.module import ActionModule, Strategy
 from whiletrue.core.runner import Runner
 
-ProviderKind = Literal["source", "store", "workspace", "knowledge", "comments"]
+ProviderKind = Literal["source", "store", "workspace", "knowledge", "comments", "wake"]
 
 
 class RegistryError(Exception):
@@ -99,6 +99,15 @@ class Registry:
 
     def get_provider(self, kind: ProviderKind, name: str) -> Any:
         return self._providers.get(f"{kind}:{name}")
+
+    def providers(self, kind: ProviderKind) -> list[tuple[str, Any]]:
+        """All providers of a kind as (name, provider), in registration order."""
+        prefix = f"{kind}:"
+        return [
+            (key[len(prefix) :], provider)
+            for key, provider in self._providers.items()
+            if key.startswith(prefix)
+        ]
 
     def ids(self) -> list[str]:
         return sorted([*self._actions, *self._strategies])

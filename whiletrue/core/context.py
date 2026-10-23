@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 import os
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
@@ -14,6 +16,18 @@ if TYPE_CHECKING:
     from whiletrue.core.config import PipelineNode
     from whiletrue.core.module import Emit, PortValues
     from whiletrue.core.outcomes import OutcomePolicy
+    from whiletrue.core.store import StateStore
+
+
+class Locks:
+    """Named locks shared by a run's steps (`repo:main` so only one item merges at a time)."""
+
+    def __init__(self) -> None:
+        self._locks: dict[str, asyncio.Lock] = {}
+
+    def hold(self, name: str) -> asyncio.Lock:
+        """Use as `async with locks.hold("repo:main"):`."""
+        return self._locks.setdefault(name, asyncio.Lock())
 
 
 @dataclass
@@ -114,6 +128,15 @@ class StepContext[Cfg]:
     record_cost: Callable[[float], None]
     #: Stable per-execution key, e.g. for idempotency: `<run>:<item>:<node>`.
     step_key: str
+    #: The run's state store (human gates, comments and the effect journal live here).
+    store: StateStore | None = None
+    #: Epoch milliseconds; injectable so tests control time.
+    now: Callable[[], int] = field(default=lambda: int(time.time() * 1000))
+    #: `on_idle: watch`: gates wait for a decision instead of parking the item.
+    watch: bool = False
+    #: Parks created by this chain of resumed runs belong to this id.
+    lineage: str = ""
+    locks: Locks = field(default_factory=Locks)
 
 
 @dataclass(kw_only=True)
