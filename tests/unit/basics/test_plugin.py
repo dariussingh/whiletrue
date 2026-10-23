@@ -11,5 +11,6 @@ def test_registers_the_builtin_modules() -> None:
         "gate.diff_size",
         "gate.shell",
         "gate.tests",
+        "set",
         "shell",
     ]

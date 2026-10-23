@@ -1,0 +1,27 @@
+# Review pass: a read-only reviewer returns a Verdict ({pass, reason}); on a fail the fixer
+# runs with the verdict as input, then the review repeats. Exhausted rounds park the item.
+composite: review-pass
+params:
+  reviewer: { required: true }   # agent file whose output is a Verdict
+  fixer: { required: true }      # agent file that receives the Verdict
+  max_rounds: { default: 3 }
+ports: { in: Any, out: Any }
+pipeline:
+  loop:
+    max: "{{params.max_rounds}}"
+    until: "last.ok && last.value.approved"
+    do:
+      - agent: { uses: "{{params.reviewer}}" }
+      - id: route
+        switch:
+          on: "input.pass ? 'true' : 'false'"
+          cases: { "true": approve, "false": fix }
+          default: fix
+        do:
+          - id: approve
+            set: { value: { approved: true } }
+          - id: fix
+            sequence:
+              do:
+                - agent: { uses: "{{params.fixer}}" }
+                - set: { value: { approved: false } }

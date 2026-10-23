@@ -5,12 +5,13 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 import cel
+from cel import stdlib as cel_stdlib
 
 #: Guards against pathological inputs; the native evaluator cannot be interrupted once started.
 MAX_EXPR_LENGTH = 4096
 
 #: CEL's standard, side-effect-free functions and operators. Anything else is rejected by `check`.
-ALLOWED_FUNCTIONS = frozenset(
+ALLOWED_FUNCTIONS = frozenset(cel_stdlib.STDLIB_FUNCTIONS) | frozenset(
     {
         "size", "has", "int", "uint", "double", "string", "bool", "bytes", "type", "dyn",
         "contains", "startsWith", "endsWith", "matches", "exists", "all", "exists_one", "map",
@@ -55,7 +56,9 @@ class Expr:
 
     def eval(self, context: Mapping[str, Any]) -> Any:
         try:
-            return self._program.execute(dict(context))
+            ctx = cel.Context(dict(context))
+            cel_stdlib.add_stdlib_to_context(ctx)  # max, split, lowerAscii, ... (all pure)
+            return self._program.execute(ctx)
         except Exception as error:
             raise ExprError(f"Cannot evaluate `{self.source}`: {error}") from error
 

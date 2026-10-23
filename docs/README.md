@@ -3,6 +3,7 @@
 | Doc                                    | Purpose                                                                           |
 | -------------------------------------- | --------------------------------------------------------------------------------- |
 | [architecture.md](architecture.md)     | Full design: core model, runtime, state, agents, human gates, packages            |
+| [reference.md](reference.md)           | User reference: modules, control flow, expressions, composites, recipes, replay   |
 | [plan.md](plan.md)                     | Implementation plan: milestones M0–M4, dependencies, exit criteria, risks, spikes |
 | [todo.md](todo.md)                     | Numbered, ordered implementation checklist (work top to bottom)                   |
 | [open-questions.md](open-questions.md) | Undecided design questions, each tied to the milestone that forces the decision   |

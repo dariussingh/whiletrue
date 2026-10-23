@@ -1,0 +1,14 @@
+# Ralph loop: run an agent with a fresh context, check with a deterministic gate, repeat until
+# green. The agent sees the previous failure as {{iter.previous}}.
+composite: ralph
+params:
+  agent: { required: true }   # path to the agent file, e.g. ./agents/ralph.md
+  gate: { default: pytest }   # shell command; exit 0 means done
+  max: { default: 5 }         # iterations before the item is parked
+ports: { in: Any, out: Any }
+pipeline:
+  loop:
+    max: "{{params.max}}"
+    do:
+      - agent: { uses: "{{params.agent}}" }
+      - gate.shell: { run: "{{params.gate}}" }

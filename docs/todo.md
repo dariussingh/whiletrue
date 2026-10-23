@@ -50,8 +50,8 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 31. [x] Composites: declared ports/params, `uses:` import, nesting, param templating.
 32. [x] `whiletrue.lock` (plugin version pins) and per-run hashes of pipeline/composite/prompt files.
 33. [x] Record agent outputs; `whiletrue replay <run>` re-runs logic with no model calls.
-34. [ ] `whiletrue.recipes`: `ralph`, `review-pass`.
-35. [ ] **M1 exit:** `ralph` and `review-pass` recipes run; replay reproduces a recorded run.
+34. [x] `whiletrue.recipes`: `ralph`, `review-pass`.
+35. [x] **M1 exit:** `ralph` and `review-pass` recipes run; replay reproduces a recorded run.
 
 ## Phase M2 · Interactive Claude Code _(parallel with M3)_
 

@@ -57,3 +57,8 @@ def test_result_must_be_boolean_for_conditions() -> None:
 
 def test_expr_is_a_value_type() -> None:
     assert isinstance(parse_expr("true"), Expr)
+
+
+def test_extension_functions_are_available() -> None:
+    assert parse_expr("max(1, 2) == 2 && 'a,b'.split(',').size() == 2").eval({}) is True
+    assert parse_expr("max(1, 2)").check(set()) == []

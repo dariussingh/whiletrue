@@ -1,6 +1,6 @@
 # whiletrue Architecture
 
-> **Implementation note:** the source doc sketches a TypeScript monorepo (`@whiletrue/*`). The implementation is **Python** (3.12+), one `whiletrue` distribution on PyPI with `whiletrue.<package>` subpackages. The design below is language-neutral; interface sketches are in Python. The CLI binary is `whiletrue`.
+> **Implementation note:** the source doc sketches a TypeScript monorepo (`@whiletrue/*`). The implementation is **Python** (3.12+), one `whiletrue` distribution on PyPI with `whiletrue.<package>` subpackages. The design below is language-neutral; interface sketches are in Python. The CLI binary is `whiletrue`. What is implemented so far (modules, control flow, expressions, composites, recipes, replay) is documented as a user reference in [reference.md](reference.md).
 
 > Source of truth: the "whiletrue Architecture" Claude doc (rev 18, 2026-10-15). Diagrams live there; this file is the repo copy. Keep both in sync.
 

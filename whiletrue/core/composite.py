@@ -92,6 +92,12 @@ def _prepare(node: PipelineNode, prefix: str, params: dict[str, Any]) -> None:
     node.config = _substitute(node.config, params, node.loc)
     node.id = f"{prefix}.{node.id}"
     node.wires = {port: f"{prefix}.{target}" for port, target in node.wires.items()}
+    if node.use == "switch":  # `switch` names sibling steps in its config; keep them in sync
+        cases = node.config.get("cases")
+        if isinstance(cases, dict):
+            node.config["cases"] = {k: f"{prefix}.{v}" for k, v in cases.items()}  # pyright: ignore[reportUnknownVariableType]
+        if isinstance(node.config.get("default"), str):
+            node.config["default"] = f"{prefix}.{node.config['default']}"
     for child in node.children:
         _prepare(child, prefix, params)
 
