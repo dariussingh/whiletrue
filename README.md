@@ -181,7 +181,7 @@ whiletrue approve 12                  # or: reject 12 --note "what to change"
 whiletrue resume                      # finished steps are replayed, never redone
 ```
 
-### The reference pipeline: issues with a human in the loop
+### The reference pipeline: GitHub issues with a human in the loop
 
 [`examples/issue-loop`](examples/issue-loop/README.md) takes every issue in a GitHub milestone from open to merged: implement in a worktree, run the gate, open a PR, answer review comments, merge, close. You review every PR, and every comment you leave gets an answer.
 
