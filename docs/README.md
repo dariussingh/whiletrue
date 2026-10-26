@@ -10,6 +10,7 @@
 | [reference.md](reference.md)           | User reference: modules, control flow, expressions, composites, recipes, replay   |
 | [plugins.md](plugins.md)               | Extending whiletrue: modules, strategies, runners, caps, entry points              |
 | [developing.md](developing.md)         | Contributing: setup, layout, run flow, workflow                                    |
+| [rsi-plan.md](rsi-plan.md)             | Execution plan for M5: Harness² recursive self-improvement and the Gemini CLI backend |
 | [plan.md](plan.md)                     | Implementation plan: milestones M0–M4, dependencies, exit criteria, risks, spikes |
 | [todo.md](todo.md)                     | Numbered, ordered implementation checklist (work top to bottom)                   |
 | [open-questions.md](open-questions.md) | Undecided design questions, each tied to the milestone that forces the decision   |

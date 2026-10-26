@@ -2,7 +2,7 @@
 
 > Tracking lives in this file, not GitHub issues, until whiletrue can run its own workflow (dogfooding starts at M1).
 
-Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is done when its **Exit** line is demonstrably true. Each item: tests first, docs updated in the same change. See [plan.md](plan.md).
+Work top to bottom. Items are numbered globally; `[ ]` = open, `[~]` = partly done. A milestone is done when its **Exit** line is demonstrably true. Each item: tests first, docs updated in the same change. See [plan.md](plan.md).
 
 ## Phase 0 · Repo & decisions
 
@@ -105,6 +105,54 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 73. [x] Verify every CLI command in the v0.1 surface exists and is documented: `init validate plan run resume status attach approve reject comment history rerun cancel logs cost replay`.
 74. [x] User docs: quickstart, pipeline/composite/agent authoring guides, plugin authoring guide, CLI reference.
 75. [x] Raise coverage floor to target; resolve remaining open questions; final `docs:check`. _(OQ-2, budget estimate accuracy, is deferred past v0.1 and listed as a known limit.)_
-76. [~] Publish `whiletrue` to PyPI; tag `v0.1.0`; release notes.
+76. [x] Publish `whiletrue` to PyPI; tag `v0.1.0`; release notes. _(Published: `v0.1.0`, then `v0.1.1` with the tmux parallel-start fix and the new README and tutorial. Releases go through `.github/workflows/release.yml` on a `v*` tag with PyPI trusted publishing.)_
 
-> Item 76: version `0.1.0`, the wheel (checked to contain the plugin, recipes and `py.typed`, and installed in a clean venv), `CHANGELOG.md` and `.github/workflows/release.yml` are ready. Publishing is the owner's step: create the `whiletrue` project on PyPI with a trusted publisher for this repo and the `pypi` environment, then `git tag v0.1.0 && git push origin v0.1.0`.
+## Phase M5 · Recursive harness improvement (RSI)
+
+Source: Harness² ([arXiv:2610.14224](https://arxiv.org/abs/2610.14224), [code](https://github.com/google-research/harness2), Apache-2.0, pinned `1cfe254`). The method code is ported and refactored into this repo as `whiletrue.rsi.harness2` (no extra dependency for users; other RSI methods can sit beside it as `whiletrue.rsi.<method>`). Design: [architecture.md](architecture.md#recursive-harness-improvement-rsi). Open questions OQ-11 to OQ-17. Execution plan: [rsi-plan.md](rsi-plan.md). Gemini CLI support follows in M6.
+
+_Provenance and design_
+
+77. [x] Third-party provenance and citation: `THIRD_PARTY_NOTICES.md`, `third_party/harness2/{LICENSE,PROVENANCE.md}`, README citation, acknowledgements and the license note ("third-party code under `third_party/`, benchmarks and datasets retain their upstream licenses").
+78. [ ] Provenance check `scripts/check_provenance.py` (run by `poe docs-check` and CI): every ported file under `whiletrue/rsi/harness2/` carries the upstream Apache header plus a modification notice and is listed in `PROVENANCE.md` with its upstream path.
+79. [ ] Spike notes `docs/spike-rsi.md`: run the upstream demo from a scratch clone, trace one task end to end, record the concept mapping and the decisions (OQ-13, OQ-16).
+80. [ ] Port and refactor the method modules into `whiletrue/rsi/harness2/` (component tree and surfaces, ledger, library, run marker, selection, evidence context, prompts), typed to pyright strict, no global state, our logging and error types, Apache headers kept. Benchmark runners, judge, report, sweep scheduler and datasets are not ported.
+
+_Setting and surface_
+
+81. [ ] `rsi` configuration: top level and per agent (`rsi: true | false | { method: harness2, k, mode, domain, adopt, evidence, budget_usd, scope, when }`), default `false`; `--rsi/--no-rsi` on `run`. `validate` rules: needs a budget, limits on improver and selector agents, `workspace: git-worktree`, an adoption policy, and no side-effect modules inside the scope; `rsi: false` leaves every existing config valid and unchanged. `plan` prints the RSI stages and the worst-case cost multiplier.
+82. [ ] Editable surface (`SurfaceSpec`) for Claude Code mapping the eight components (system prompt, guardrails, memory, tool guidance, subagents, skills, scripts, plugins) to files in the worktree; opencode and Codex surfaces ported from Harness². Read, validate, write and diff a tree; hooks, scripts, permission rules and MCP flagged as always-approve. (OQ-16)
+
+_Task-level recursion_
+
+83. [ ] Rollout adapter: run a pipeline scope under a candidate harness in an isolated git worktree; extract trajectory and deliverable from the run record; reuse a finished rollout through the completion marker and harness fingerprint.
+84. [ ] Improver, composer and selector as ordinary whiletrue agent steps (limits, any backend) and the evidence-tree builder; answer-free tripwires (no gate verdicts unless `rsi.evidence: gates`). (OQ-12)
+85. [ ] `rsi.harness2` strategy: k reference rollouts, general and domain proposals, probes, compositions, final rollouts. Parallel mode uses the scheduler's semaphores; sequential mode carries harness and evidence forward. Journaled and resumable.
+86. [ ] Blind selection: anonymized finals, selector failure falls back to the base output, optional `selection: gate-first`.
+87. [ ] Budget ledger: R = 4k and P = 3k checked at run time, spend per stage in `cost`, hard `rsi.budget_usd` that parks the item with a reason; `when:` guard. (OQ-15)
+
+_Harnessing-level recursion and humans_
+
+88. [ ] Per-domain experience library under `.whiletrue/rsi/` (adopted harness plus lessons), read before each item and appended after; domain from `rsi.domain`. (OQ-13)
+89. [ ] Experience reflector as an agent step proposing evidence-supported lessons into `history` and `learnings` (approval before any lesson reaches an agent).
+90. [ ] Adoption: `rsi.adopt: approve | auto | never`; the adopted harness is a diff at a `human.approve` gate (`what: harness`), committed on approval, discarded on `rejected`. Hooks and scripts always need approval. (OQ-14)
+
+_CLI, tests, evaluation, docs_
+
+91. [ ] CLI `whiletrue rsi status | diff | library | adopt | reset`; control panel shows the RSI stage; `logs` and `cost` split by stage.
+92. [ ] Tests: deterministic fake improver and executor; the upstream demo scenario as an integration test; regression test that `rsi: false` produces identical runs; coverage floor held.
+93. [ ] Opt-in live test (`WHILETRUE_LIVE=1`): real Claude Code, k=1, one small item; record cost and wall time.
+94. [ ] Evaluation on a small coding backlog: gate pass rate, retries and cost with `rsi` on versus off, and against the `history.distill` baseline. Publish honest numbers, including a negative result. (OQ-17)
+95. [ ] Docs: `docs/rsi.md` user guide, tutorial section, reference, architecture, README feature, CHANGELOG; `docs:check` green.
+96. [ ] **M5 exit:** with `rsi: true`, a 6-item backlog improves its agent harness item by item and a person reviews every adopted change; with `rsi: false`, behavior is unchanged.
+97. [ ] Release `v0.2.0` (version bump, CHANGELOG, tag, PyPI). _(Owner step: pushing a tag publishes.)_
+
+## Phase M6 · Gemini CLI backend
+
+Follows M5. Independent of RSI except that a Gemini surface is added to it at the end. Open question OQ-18.
+
+98. [ ] Spike `docs/spike-gemini.md`: install and log in to `gemini`, then verify against the real binary what the docs promise: `-p`, `-o stream-json` event and `result`/`stats` field names, `--approval-mode` values, exit codes `0/1/42/53`, `--skip-trust`, `-r` resume, where `GEMINI.md` and `.gemini/settings.json` are read, how skills, extensions, custom commands and `/agents` are laid out on disk.
+99. [ ] `whiletrue.gemini` runner: `gemini -p ... -o stream-json`, `permission_mode` to `--approval-mode`, model aliases, exit `53` to a `turns_exceeded` park, exit `42` to a clear failure, token usage from `result.stats`, structured `outputs:` through the prompt, `-r` resume, live pane through `StreamMirror`. No budget or turn flag exists, so `validate` rejects `budget_usd` and `turns` on this runner (as for Codex). `WHILETRUE_GEMINI_BIN`.
+100. [ ] Gemini tests and docs: a fake `gemini` replaying the recorded stream, unit and integration tests, an opt-in live test, backend tables updated (README, authoring, getting-started, CLI env vars, CHANGELOG).
+101. [ ] Gemini surface for RSI (`GEMINI.md`, skills, extensions, custom commands, agents, settings and MCP) and a Gemini executor in the RSI live test.
+102. [ ] Release `v0.3.0`.

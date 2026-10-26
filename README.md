@@ -238,6 +238,14 @@ whiletrue --help        # installed editable into .devenv/state/venv
 
 Live tests against real agent CLIs are opt-in: `WHILETRUE_LIVE=1 uv run pytest tests/live -v`.
 
+## Roadmap
+
+Next is **recursive self-improvement** (`rsi`, off by default): an optional mode in which whiletrue improves its own agents' harness (prompts, skills, subagents, hooks) item by item, using the Propose, Probe, Compose method from Harness². The plan is in [docs/plan.md](docs/plan.md#m5--recursive-harness-improvement-rsi) and the design in [docs/architecture.md](docs/architecture.md#recursive-harness-improvement-rsi). It is not built yet; the step-by-step plan is [docs/rsi-plan.md](docs/rsi-plan.md). Gemini CLI support follows as its own milestone.
+
+## Acknowledgements and citation
+
+The `rsi` feature builds on **Harness²: Recursive Agent Harnessing for an Open World** (Xu et al., Google Research, 2026; [arXiv:2610.14224](https://arxiv.org/abs/2610.14224), [code](https://github.com/google-research/harness2), Apache-2.0). If you use `rsi` in research, please cite the paper (BibTeX in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)). whiletrue is an independent project, not affiliated with Google or the Harness² authors.
+
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). Third-party code under `third_party/`, benchmarks, and datasets retain their upstream licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).

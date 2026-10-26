@@ -417,6 +417,74 @@ pipeline:
 
 The pipeline exercises every core feature: the item graph, parallel worktrees, retry with feedback, deterministic gates, a side-effect journal (push and PR), a conversational human gate that answers every comment, with a `rejected` route, a nested loop, a reusable composite, a second runner, a shared session across steps, and a resource lock for merges.
 
+## Recursive harness improvement (RSI)
+
+**Status: planned (M5), off by default.** Source method: Harness² (Xu et al., Google Research, 2026, [arXiv:2610.14224](https://arxiv.org/abs/2610.14224), [code](https://github.com/google-research/harness2), Apache-2.0). The method code is ported into this repo as `whiletrue.rsi.harness2` (Apache-2.0 headers kept; see [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)). Other RSI methods can sit beside it as `whiletrue.rsi.<method>`; `rsi.method` selects one (default `harness2`).
+
+A pipeline normally runs the same agent harness (the agent file, plus the project's `CLAUDE.md`, skills, subagents, hooks and scripts) for every item. With `rsi: true`, whiletrue improves that harness while the backlog runs, keeping model weights fixed. It works at two levels.
+
+- **Task-level recursion** refines the harness for the current item with a contrastive **Propose, Probe, Compose** step. Reference rollouts of the base harness give evidence. An improver proposes general (invariant, INV) and domain-specific (DOM) edits. Each candidate is probed by running it on the same item. Compositions combine the candidates using the behavioral contrasts between their rollouts. A blind selector, which never sees scores, picks one final output.
+- **Harnessing-level recursion** keeps what worked. After an item, a reflector stores the adopted harness and evidence-supported lessons in a per-domain library that later items read.
+
+```mermaid
+flowchart LR
+  A[Item] --> B[k reference rollouts<br/>base harness]
+  B --> C[Propose: INV and DOM edits]
+  C --> D[Probe: run each candidate<br/>in its own worktree]
+  D --> E[Compose: k refined harnesses]
+  E --> F[Final rollouts]
+  F --> G[Blind selection]
+  G --> H{Adopt?}
+  H -- approve --> I[Diff at human gate,<br/>commit on approval]
+  G --> J[Reflect]
+  J --> K[(Per-domain library)]
+  K -. read before the next item .-> C
+```
+
+### Setting
+
+```yaml
+rsi: false                  # default; every existing config behaves exactly as before
+
+agents:                     # or per agent file: `rsi:` in the header
+  rsi:
+    k: 1                    # task-level recursion budget
+    mode: parallel          # parallel | sequential
+    domain: "item.labels[0]"   # expression; default is the source label or project
+    adopt: approve          # approve (default) | auto | never
+    evidence: blind         # blind (default) | gates
+    budget_usd: 12          # required; hard cap, parks the item when reached
+    when: "iter.index > 1"  # optional guard
+```
+
+`whiletrue run --rsi` and `--no-rsi` override the file. `validate` refuses `rsi` without a budget, without limits on the improver and selector agents, without `workspace: git-worktree`, or without an adoption policy. `plan` prints the RSI stages and the worst-case cost: one step at `k` is **R = 4k rollouts and P = 3k improvement sessions**, so `k: 1` costs about 7 times a plain agent run.
+
+### How it maps onto whiletrue
+
+| Harness² | whiletrue |
+|---|---|
+| Task, domain, task stream | Item, `rsi.domain`, item order |
+| Base harness | The agent file and the project's agent surface in the item's worktree |
+| Rollout | The pipeline's agent step run under a harness, in an isolated worktree |
+| Executor | A runner: `claude-code-headless`, `claude-code`, `opencode`, `codex`, 
+| Improver, composer, selector, reflector | Ordinary whiletrue agent steps with limits, on any backend |
+| c1..c8 component tree | A `SurfaceSpec` per runner: system prompt, guardrails, memory, tool guidance, subagents, skills, scripts, plugins |
+| Budget ledger | `cost`, split by stage, with a hard `budget_usd` |
+| Experience library | `.whiletrue/rsi/`, linked to `history` and `learnings` |
+
+### Principles
+
+1. **Off unless asked.** `rsi: false` is the default and leaves behavior unchanged. This is regression-tested.
+2. **Answer-free by default.** Evidence and selection never contain a verifier's verdict, as in the paper. A coding pipeline already has deterministic gates, so `evidence: gates` and `selection: gate-first` are opt-in (OQ-12).
+3. **A human adopts.** Candidate harnesses live in worktrees. Adopting one into the repo is a diff at a `human.approve` gate. Hooks, scripts and permission rules are never adopted automatically, because they execute code.
+4. **Bounded.** A required budget, the `4k` and `3k` identity checked at run time, and a `when:` guard.
+5. **Resumable.** Rollouts are journaled; a finished rollout is reused through its completion marker and harness fingerprint.
+6. **Core stays clean.** `whiletrue.rsi` is a plugin on the public API. `whiletrue.core` imports nothing from it.
+
+### What is taken from Harness²
+
+Only method code (`core/`: component tree, spec seam, ledger, library, selection, run markers, evidence context, prompts), ported and refactored into `whiletrue/rsi/harness2/` with the upstream headers kept, modifications noted, and each file listed in `third_party/harness2/PROVENANCE.md`. The orchestration is rebuilt on whiletrue's runtime. Benchmark runners, patches and datasets are not taken; they keep their upstream licenses, and the WorkBuddy-derived code carries a territorial limitation. whiletrue is an independent project and is not affiliated with Google or the Harness² authors.
+
 ## Packages and repo layout
 
 One Python distribution, `whiletrue`, published to PyPI. Each row below is a subpackage (`whiletrue.<name>`); the core has no knowledge of git, GitHub, tmux or any specific agent, and that boundary is enforced by an import test. Third-party plugins are separate distributions that advertise a `Plugin` under the `whiletrue.plugins` entry-point group (or a module exposing `plugin`), and are named in `uses:`.
@@ -434,6 +502,7 @@ One Python distribution, `whiletrue`, published to PyPI. Each row below is a sub
 | `whiletrue.tmux` | TUI: session, panes, control panel | core |
 | `whiletrue.cli` | The `whiletrue` command; loads plugins listed in `whiletrue.yaml` | all of the above as defaults |
 | `whiletrue.recipes` | Shareable composites: `ralph`, `review-pass`, `issue-loop` | control, basics |
+| `whiletrue.rsi` (planned, M5) | Optional recursive harness improvement. `whiletrue.rsi.harness2` is the Harness² method (component tree, surfaces, ledger, library, selection, evidence, prompts, `rsi.harness2` strategy, adoption gate); other methods can be added beside it | core, git |
 
 ### CLI surface (v0.1)
 
@@ -444,6 +513,7 @@ One Python distribution, `whiletrue`, published to PyPI. Each row below is a sub
 - `whiletrue.yaml` is the pipeline, and `whiletrue.lock` pins plugin versions.
 - `agents/*.md` and `loops/*.yaml` hold the project's agent modules and composites.
 - `.whiletrue/` holds `state.db`, logs and session transcripts. It is git-ignored.
+- `third_party/` holds the upstream license text and provenance for code ported into this repo (today: Harness²). See [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
 
 ## Implementation status (M0 to M4)
 

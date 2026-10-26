@@ -6,7 +6,7 @@ From M1 onward, whiletrue is built using its own workflow (dogfooding). Each mil
 
 ## Status
 
-M0 to M4 are built (M0 and M1 reviewed); what remains is the v0.1 release work in [todo.md](todo.md) (see [todo.md](todo.md)).
+M0 to M4 are built and v0.1.0 and v0.1.1 are published to PyPI. Next is **M5 · recursive harness improvement (`rsi`)**, then v0.2. Open work is in [todo.md](todo.md).
 
 ## Milestone graph
 
@@ -16,7 +16,10 @@ M0 Core engine
      ├─ M2 Interactive Claude Code  ─┐   (M2 and M3 are independent: parallelizable)
      └─ M3 Parallel items & DAG     ─┤
                                      └─ M4 GitHub, human gates, review
-                                          └─ v0.1 release gate
+                                          └─ v0.1 release gate (shipped)
+                                               └─ M5 Recursive harness improvement (rsi)
+                                                    └─ v0.2 release
+                                                         └─ M6 Gemini CLI backend
 ```
 
 | Milestone                        | Scope                                                                                                                 | Exit criterion                           |
@@ -27,6 +30,9 @@ M0 Core engine
 | M3 · Parallel items & DAG        | Item graph, parallel `map`, git worktrees, resource locks, side-effect journal, crash recovery                        | 4 JSON tasks run in parallel             |
 | M4 · GitHub, human gates, review | `github_issues` source, PR/review/merge modules, park/approve/reject, comment replies, opencode runner, control panel | One issue goes open → merged             |
 | v0.1 release                     | Reference pipeline merges a real milestone, 4 items in parallel                                                       | Release gate (see below)                 |
+| M5 · Recursive harness improvement | Optional `rsi` setting (off by default): Propose, Probe, Compose over the agent harness, per-domain experience library, blind selection, human-approved adoption, built on ported Harness² code (Apache-2.0) | A 6-item backlog improves its harness item by item; `rsi: false` is unchanged |
+| v0.2 release                     | `rsi` documented, evaluated and released                                                                              | See M5 exit                              |
+| M6 · Gemini CLI backend          | `runner: gemini` (headless stream-json), tests, docs, plus a Gemini surface for RSI                                    | Gemini runs a pipeline step; v0.3        |
 
 ## Cross-cutting rules (apply in every milestone)
 
@@ -87,6 +93,20 @@ M0 Core engine
 - `whiletrue.opencode` runner; tmux control panel; `logs`, `cost`.
 - `issue-loop` recipe.
 
+### M5 · Recursive harness improvement (RSI)
+
+Goal: an optional `rsi: true | false` setting (default `false`) that lets whiletrue improve the harness around its agents as items flow through a pipeline. The method is Harness² (Xu et al., Google Research, 2026, [arXiv:2610.14224](https://arxiv.org/abs/2610.14224)); we port and refactor its method code into this repo as `whiletrue.rsi.harness2` (Apache-2.0 headers kept, provenance recorded, no extra dependency for users), so other RSI methods can later sit beside it as `whiletrue.rsi.<method>`. Design: [architecture.md](architecture.md#recursive-harness-improvement-rsi).
+
+- **Provenance first:** third-party notices, license copy, pinned commit, citation, a provenance check in CI. No benchmark runners or datasets are ported.
+- **Setting:** `rsi` at the top level and per agent, `--rsi/--no-rsi` on `run`; `validate` requires a budget, limits and an adoption policy; `plan` prints the stages and the worst-case cost multiplier (R = 4k rollouts, P = 3k improvement stages).
+- **Task-level recursion:** reference rollouts of the base harness, general (INV) and domain (DOM) proposals, probes in per-candidate git worktrees, `k` compositions, blind answer-free selection, in parallel and sequential modes.
+- **Harnessing-level recursion:** a per-domain experience library (adopted harness plus evidence-supported lessons), read before each item and appended after, connected to `history` and `learnings`.
+- **Human accountable:** an adopted harness is a diff shown at a human gate before it enters the repo; hooks and scripts always need approval.
+- **Surfaces:** Claude Code (new), opencode and Codex (ported from Harness²).
+Step-by-step execution plan, with stages, dependencies, tests and decisions for you: [rsi-plan.md](rsi-plan.md).
+
+**Exit:** with `rsi: true`, a 6-item backlog improves its agent harness item by item and a person reviews every adopted change; with `rsi: false`, behavior is unchanged (regression-tested). An evaluation against the `history.distill` baseline is published with honest numbers.
+
 ## v0.1 release gate
 
 - Reference pipeline merges a real milestone, 4 items parallel, with at least one `rejected` → fix route and one crash/resume exercised.
@@ -102,3 +122,7 @@ M0 Core engine
 | Crash recovery of tmux panes (re-attach vs. `--resume`)     | Decide via experiment; make policy configurable      | M3          |
 | `session: item` resume with changed cwd                     | Test explicitly; pin worktree per item               | M3          |
 | Expression language scope creep                             | Pick small sandboxed lib early; no Python eval           | M1          |
+| RSI costs about 7x an agent run per item at k=1             | Required `rsi.budget_usd`, `when:` guard, worst-case estimate in `plan` | M5          |
+| Self-edited hooks and scripts are a code-execution surface  | Allow-list; always human-approved; never auto-adopted    | M5          |
+| Ported code loses its attribution or license                | Pinned commit, header and provenance check in CI, notices, no benchmark code | M5          |
+| RSI may not help where a gate already exists                | Opt-in; evaluate against `history.distill` before recommending | M5          |
