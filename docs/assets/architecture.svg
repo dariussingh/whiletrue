@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 668" width="960" height="668" role="img" aria-label="whiletrue architecture: CLI and whiletrue.yaml feed the core engine, which uses plugins to drive agent CLIs, git, GitHub and tmux, with state in SQLite">
   <style>
-    text{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace;fill:#d5dbe3}
-    .t{font-size:15px;font-weight:700}.d{fill:#7d8896}.b{fill:#151b23;stroke:#2b3440;stroke-width:1.5}
-    .g{fill:#12251a;stroke:#3f7a50;stroke-width:1.5}.c{fill:#10222b;stroke:#3a7f96;stroke-width:1.5}.o{fill:#2a1f14;stroke:#a8683a;stroke-width:1.5}
-    .l{stroke:#7d8896;stroke-width:1.5;fill:none;marker-end:url(#a)}
+    text{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace;fill:#c9d1d9}
+    .t{font-size:15px;font-weight:700}.d{fill:#8b949e}.b{fill:#161b22;stroke:#30363d;stroke-width:1.5}
+    .g{fill:#0f2d1a;stroke:#2ea043;stroke-width:1.5}.c{fill:#0c2a4d;stroke:#388bfd;stroke-width:1.5}.o{fill:#2d1b0e;stroke:#db6d28;stroke-width:1.5}
+    .l{stroke:#8b949e;stroke-width:1.5;fill:none;marker-end:url(#a)}
   </style>
-  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#7d8896"/></marker></defs>
-  <rect width="960" height="668" rx="10" fill="#0f1419"/>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8b949e"/></marker></defs>
+  <rect width="960" height="668" rx="10" fill="#0d1117"/>
 
   <rect class="b" x="30" y="24" width="900" height="64" rx="6"/>
   <text class="t" x="48" y="50">You</text>
@@ -39,8 +39,8 @@
   <rect class="b" x="504" y="388" width="140" height="64" rx="5"/><text x="516" y="414">github</text><text class="d" x="516" y="434">issues, PRs</text>
   <rect class="b" x="656" y="388" width="130" height="64" rx="5"/><text x="668" y="414">claude_code</text><text class="d" x="668" y="434">headless tmux</text>
   <rect class="b" x="798" y="388" width="114" height="64" rx="5"/><text x="810" y="414">opencode</text><text class="d" x="810" y="434">codex</text>
-  <rect x="48" y="462" width="864" height="64" rx="5" fill="#241a2e" stroke="#8b66b0" stroke-width="1.5" stroke-dasharray="6 4"/>
-  <text class="t" x="60" y="486" style="fill:#c9a8e8">rsi (optional, off by default) · Harness²</text>
+  <rect x="48" y="462" width="864" height="64" rx="5" fill="#271a3d" stroke="#8957e5" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text class="t" x="60" y="486" style="fill:#d2a8ff">rsi (optional, off by default) · Harness²</text>
   <text class="d" x="60" y="508">rsi.harness2: rollouts, improver sessions, blind selection, library, human adoption</text>
   
   <path class="l" d="M480 538V564"/>

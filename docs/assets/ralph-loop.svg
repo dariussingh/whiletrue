@@ -1,17 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 320" width="960" height="320" role="img" aria-label="Ralph loop flow: an agent runs in a fresh context, a pytest gate checks it, a pass ends the loop, a fail feeds the output back to the agent, and exhausting the bound parks the item for a human">
 <style>
-text{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace;fill:#d5dbe3}
-.t{font-weight:700;font-size:15px}.d{fill:#7d8896}.ok{fill:#7fd48a}.bad{fill:#ef7a7a}.hu{fill:#e8935a}
-.n{fill:#151b23;stroke:#2b3440;stroke-width:1.5}.a{fill:#10222b;stroke:#3a7f96;stroke-width:1.5}
-.g{fill:#2a2812;stroke:#a89a3a;stroke-width:1.5}.h{fill:#2a1f14;stroke:#a8683a;stroke-width:1.5}.e{fill:#12251a;stroke:#3f7a50;stroke-width:1.5}
-.l{stroke:#7d8896;stroke-width:1.5;fill:none;marker-end:url(#m)}.lg{stroke:#7fd48a;stroke-width:1.5;fill:none;marker-end:url(#mg)}
-.lr{stroke:#ef7a7a;stroke-width:1.5;fill:none;stroke-dasharray:5 4;marker-end:url(#mr)}.lo{stroke:#e8935a;stroke-width:1.5;fill:none;stroke-dasharray:5 4;marker-end:url(#mo)}
+text{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace;fill:#c9d1d9}
+.t{font-weight:700;font-size:15px}.d{fill:#8b949e}.ok{fill:#56d364}.bad{fill:#ff7b72}.hu{fill:#ffa657}
+.n{fill:#161b22;stroke:#30363d;stroke-width:1.5}.a{fill:#0c2a4d;stroke:#388bfd;stroke-width:1.5}
+.g{fill:#2d2305;stroke:#d29922;stroke-width:1.5}.h{fill:#2d1b0e;stroke:#db6d28;stroke-width:1.5}.e{fill:#0f2d1a;stroke:#2ea043;stroke-width:1.5}
+.l{stroke:#8b949e;stroke-width:1.5;fill:none;marker-end:url(#m)}.lg{stroke:#56d364;stroke-width:1.5;fill:none;marker-end:url(#mg)}
+.lr{stroke:#ff7b72;stroke-width:1.5;fill:none;stroke-dasharray:5 4;marker-end:url(#mr)}.lo{stroke:#ffa657;stroke-width:1.5;fill:none;stroke-dasharray:5 4;marker-end:url(#mo)}
 </style>
 <defs>
-<marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#7d8896"/></marker>
-<marker id="mg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#7fd48a"/></marker>
-<marker id="mr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#ef7a7a"/></marker>
-<marker id="mo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#e8935a"/></marker>
+<marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8b949e"/></marker>
+<marker id="mg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#56d364"/></marker>
+<marker id="mr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#ff7b72"/></marker>
+<marker id="mo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#ffa657"/></marker>
 </defs>
-<rect width="960" height="320" rx="10" fill="#0f1419"/>
+<rect width="960" height="320" rx="10" fill="#0d1117"/>
 <text class="t" x="30" y="34">Ralph loop: loop { max: 5 }</text><rect class="n" x="30" y="90" width="150" height="64" rx="6"/><text class="t " x="42" y="114">item</text><text class="d" x="42" y="134">TODO.md task</text><rect class="a" x="250" y="90" width="190" height="64" rx="6"/><text class="t " x="262" y="114">agent</text><text class="d" x="262" y="134">fresh context</text><rect class="g" x="510" y="90" width="190" height="64" rx="6"/><text class="t " x="522" y="114">gate.shell</text><text class="d" x="522" y="134">run: pytest</text><rect class="e" x="770" y="90" width="160" height="64" rx="6"/><text class="t ok" x="782" y="114">done</text><text class="d" x="782" y="134">gate is green</text><path class="l" d="M180 122H248"/><path class="l" d="M440 122H508"/><path class="lg" d="M700 122H768"/><text class="ok" x="734" y="112" text-anchor="middle">ok</text><path class="lr" d="M605 156V230H345V158"/><text class="bad" x="475" y="252" text-anchor="middle">fail: output becomes {{iter.previous}}</text><text class="d" x="30" y="284">Every loop is bounded. When the rounds run out the item parks as needs_human with the last gate output.</text><text class="d" x="30" y="302">Agent steps need limits (budget, turns, wall time); validate refuses the config otherwise.</text></svg>
