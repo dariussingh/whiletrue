@@ -51,23 +51,23 @@ text{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',mon
 <text class="d s" x="784" y="268">file changes go to</text><text class="d s" x="784" y="284">your workspace</text>
 <path class="l" d="M850 196V220"/>
 
-<rect x="16" y="330" width="928" height="228" rx="12" fill="#1c1230" stroke="#8957e5" stroke-width="1.5"/>
+<rect x="16" y="330" width="928" height="238" rx="12" fill="#1c1230" stroke="#8957e5" stroke-width="1.5"/>
 <text class="t p" x="32" y="356">Harnessing-level recursion</text>
 <text class="d s" x="292" y="356">what one item learns is kept for the next</text>
 
 <path class="lp" d="M850 294V374"/>
-<rect class="v" x="770" y="376" width="160" height="104" rx="6"/>
+<rect class="v" x="770" y="376" width="160" height="112" rx="6"/>
 <text class="t" x="784" y="402">6 Reflect</text>
 <text class="d" x="784" y="428">what edits did;</text><text class="d" x="784" y="446">at most one</text><text class="d" x="784" y="464">lesson to keep</text>
-<rect class="h" x="540" y="376" width="205" height="104" rx="6"/>
-<text class="t hu" x="554" y="402">7 A person adopts</text>
-<text class="d" x="554" y="428">approve | auto | never</text><text class="d" x="554" y="446">scripts and hooks</text><text class="d" x="554" y="464">always need approval</text>
-<rect class="v" x="215" y="376" width="285" height="104" rx="6"/>
+<rect class="h" x="540" y="376" width="205" height="112" rx="6"/>
+<text class="t hu" x="554" y="402">7 Adopt</text>
+<text class="d" x="554" y="424">a person approves</text><text class="d" x="554" y="440">(default) or a model</text><text class="d" x="554" y="456">reviews it; code files</text><text class="d" x="554" y="472">always need a person</text>
+<rect class="v" x="215" y="376" width="285" height="112" rx="6"/>
 <text class="t" x="229" y="402">8 Experience library</text>
 <text class="d" x="229" y="428">per domain: adopted harnesses</text><text class="d" x="229" y="446">and their lessons, read by the</text><text class="d" x="229" y="464">next item's improver sessions</text>
 <path class="lp" d="M770 428H747"/><path class="lp" d="M540 428H502"/>
 <path class="lp" d="M295 376V198"/>
 <text class="d s" x="305" y="322" style="fill:#d2a8ff">feeds step 2 of the next item</text>
 
-<text class="d s" x="30" y="578">Method: Harness² (Xu et al., Google Research, 2026, arXiv:2610.14224), ported into whiletrue.rsi.harness2.</text>
+<text class="d s" x="30" y="588">Method: Harness² (Xu et al., Google Research, 2026, arXiv:2610.14224), ported into whiletrue.rsi.harness2.</text>
 </svg>
