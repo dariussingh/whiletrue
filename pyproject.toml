@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "whiletrue"
-version = "0.2.0"
+version = "0.2.1"
 description = "Local orchestrator that runs pipelines of agent and deterministic steps around Claude Code, opencode and Codex, with gates, human approval, parallel git worktrees and crash-safe resume."
 readme = "README.md"
 license = "MIT"

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.1
 
 - Internal: structure and code quality. The runtime is split into a package (`model`, `scheduler`, `items`, `steps`, `journal`); the CLI into `args`, `project`, `commands` and one dispatch table; the validator into rule methods; the GitHub plugin into `refs`, `providers`, `modules`; the three agent runners share `basics/stream.py`; the panes code moved to `tmux`; `rsi.harness2` is split by responsibility. Package layering, cycles and the rsi method layer are enforced by tests, and complexity limits by lint. No behavior change.
 - `rsi`: `adopt: model` lets a reviewing model approve or reject the proposed harness instead of a person, as in the Harness² paper (fails closed; executable files still need a person). New optional `rsi.reviewer`. `whiletrue rsi status` shows the model's decision.
