@@ -23,7 +23,7 @@ from whiletrue.core import (
 from whiletrue.store_sqlite import SqliteStore
 
 if TYPE_CHECKING:
-    from whiletrue.cli.app import _Loaded  # pyright: ignore[reportPrivateUsage]
+    from whiletrue.cli.project import Loaded
 
 
 class RunLock:
@@ -90,7 +90,7 @@ def _log(io: Io):
     return log
 
 
-async def source_items(loaded: _Loaded) -> list[RunItem] | None:
+async def source_items(loaded: Loaded) -> list[RunItem] | None:
     return await fetch_items(loaded.registry, loaded.config.extra, loaded.cwd)
 
 
@@ -101,7 +101,7 @@ def cycle_error(items: list[RunItem] | None) -> str | None:
     return "Items depend on each other in a cycle: " + "; ".join(" -> ".join(c) for c in cycles)
 
 
-async def resume(io: Io, loaded: _Loaded, run_id: str | None, lock_hash: str | None) -> int:
+async def resume(io: Io, loaded: Loaded, run_id: str | None, lock_hash: str | None) -> int:
     """Continue a parked run, or one whose process died: recorded steps are replayed."""
     db_path = Path(loaded.cwd) / ".whiletrue" / "state.db"
     if not db_path.exists():
@@ -160,7 +160,7 @@ async def resume(io: Io, loaded: _Loaded, run_id: str | None, lock_hash: str | N
 
 
 async def rerun(
-    io: Io, loaded: _Loaded, item_id: str, from_step: str | None, lock_hash: str | None
+    io: Io, loaded: Loaded, item_id: str, from_step: str | None, lock_hash: str | None
 ) -> int:
     """Run one item again as a new run; with `--from`, steps before that step are replayed."""
     db_path = Path(loaded.cwd) / ".whiletrue" / "state.db"

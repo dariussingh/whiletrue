@@ -1,48 +1,19 @@
+"""The `whiletrue` command: usage text, dispatch and the process entry point."""
+
 from __future__ import annotations
 
 import asyncio
-import json
-import os
 import signal as signal_module
 import sys
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
 from whiletrue.abort import AbortSignal
-from whiletrue.cli import gates, ops, rsi_cmd
+from whiletrue.cli import commands, gates, ops, rsi_cmd
+from whiletrue.cli import project as project_module
+from whiletrue.cli.args import Args, parse_args
 from whiletrue.cli.common import EXIT, Io
-from whiletrue.cli.registry import (
-    RegistryOptions,
-    create_default_registry,
-    load_plugins,
-    whiletrue_version,
-)
-from whiletrue.cli.templates import RALPH_AGENT, RALPH_PIPELINE
-from whiletrue.core import (
-    LOCK_FILE,
-    ConfigError,
-    LockError,
-    PipelineConfig,
-    PipelineNode,
-    Registry,
-    ReplayError,
-    check_lock,
-    format_diagnostic,
-    has_errors,
-    hash_pipeline,
-    load_pipeline,
-    load_recording,
-    read_lock,
-    run_pipeline,
-    sha256_file,
-    validate_pipeline,
-    write_lock,
-)
-from whiletrue.rsi import SettingError, apply_rsi, rsi_plugin
-from whiletrue.store_sqlite import SqliteStore
-from whiletrue.tmux import TmuxController, session_name
+from whiletrue.cli.project import Loaded, lock_hash, locked, validated, with_loaded
 
 USAGE = """whiletrue — run configurable loops around coding agents
 
@@ -80,388 +51,110 @@ Options:
 """
 
 
-@dataclass
-class _Loaded:
-    config: PipelineConfig
-    registry: Registry
-    cwd: str
+Handler = Callable[[Io, Args, list[str]], Awaitable[int]]
 
 
-def _load(io: Io, file: str, *, check_pins: bool = True) -> _Loaded | int:
-    path = (Path(io.cwd) / file).resolve()
-    try:
-        config = load_pipeline(path)
-    except ConfigError as error:
-        io.err(f"{error}\n")
-        return EXIT.failed
-    except OSError as error:
-        io.err(f"Cannot load {file}: {error}\n")
-        return EXIT.failed
-    registry = create_default_registry(
-        RegistryOptions(project_dir=str(path.parent), pane_host=io.pane_host, github=io.github)
-    )
-    try:
-        load_plugins(registry, config.uses, str(path.parent))
-    except Exception as error:
-        io.err(f"{error}\n")
-        return EXIT.failed
-    cwd = str(path.parent)
-    try:
-        config = _with_rsi(registry, config)
-    except SettingError as error:
-        io.err(f"{path}: {error}\n")
-        return EXIT.failed
-    if not check_pins:
-        return _Loaded(config, registry, cwd)
-    try:
-        pinned = read_lock(Path(cwd) / LOCK_FILE)
-    except LockError as error:
-        io.err(f"{error}\n")
-        return EXIT.failed
-    if pinned is not None:
-        problems = check_lock(pinned, registry.plugin_versions())
-        if problems:
-            io.err("".join(f"{p}\n" for p in problems) + "Run `whiletrue lock` to update it.\n")
-            return EXIT.failed
-    return _Loaded(config, registry, cwd)
+def _arg(rest: list[str], index: int = 0) -> str | None:
+    return rest[index] if len(rest) > index else None
 
 
-def _with_rsi(registry: Registry, config: PipelineConfig) -> PipelineConfig:
-    """Apply the `rsi:` setting. With it off (or absent) nothing is registered or changed."""
-    if config.extra.get("rsi") in (None, False):
-        return config
-    if "whiletrue.rsi" not in registry.plugins():
-        registry.use(rsi_plugin, whiletrue_version())
-    return apply_rsi(config, registry)
-
-
-def _validated(io: Io, loaded: _Loaded) -> bool:
-    diagnostics = validate_pipeline(loaded.config, loaded.registry, cwd=loaded.cwd)
-    for d in diagnostics:
-        io.err(f"{format_diagnostic(d)}\n")
-    return not has_errors(diagnostics)
-
-
-def _render_tree(
-    node: PipelineNode, prefix: str = "", last: bool = True, root: bool = True
-) -> list[str]:
-    summary = f" {json.dumps(node.config, separators=(',', ':'))}" if node.config else ""
-    connector = "" if root else prefix + ("└─ " if last else "├─ ")
-    line = f"{connector}{node.use}{summary}  [{node.id}]"
-    child_prefix = "" if root else prefix + ("   " if last else "│  ")
-    lines = [line]
-    for i, child in enumerate(node.children):
-        lines += _render_tree(child, child_prefix, i == len(node.children) - 1, False)
-    return lines
-
-
-def _init(io: Io, force: bool) -> int:
-    files = [("whiletrue.yaml", RALPH_PIPELINE), ("agents/ralph.md", RALPH_AGENT)]
-    existing = [name for name, _ in files if (Path(io.cwd) / name).exists()]
-    if existing and not force:
-        io.err(f"Refusing to overwrite {', '.join(existing)} (use --force)\n")
-        return EXIT.failed
-    for name, content in files:
-        target = Path(io.cwd) / name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
-        io.out(f"created {name}\n")
-    io.out("Next: whiletrue validate && whiletrue plan && whiletrue run\n")
-    return EXIT.ok
-
-
-async def _run_loaded(io: Io, loaded: _Loaded) -> int:
-    store = SqliteStore(Path(loaded.cwd) / ".whiletrue" / "state.db")
-
-    def log(level: str, message: str, data: object = None) -> None:
-        if level != "debug":
-            io.out(f"[{level}] {message}\n")
-
-    try:
-        try:
-            items = await ops.source_items(loaded)
-        except Exception as error:
-            io.err(f"Cannot fetch items: {error}\n")
-            return EXIT.failed
-        problem = ops.cycle_error(items)
-        if problem is not None:
-            io.err(f"{problem}\n")
-            return EXIT.failed
-        result = await run_pipeline(
-            registry=loaded.registry,
-            config=loaded.config,
-            store=store,
-            cwd=loaded.cwd,
-            signal=io.signal,
-            log=log,
-            lockfile=_lock_hash(loaded.cwd),
-            items=items,
-        )
-        io.out(f"run {result.run_id}: {result.status}\n")
-        for item in result.items:
-            io.out(ops.item_line(item))
-        return {
-            "done": EXIT.ok,
-            "parked": EXIT.parked,
-            "cancelled": EXIT.cancelled,
-        }.get(result.status, EXIT.failed)
-    finally:
-        store.close()
-
-
-async def _replay(io: Io, file: str, run_id: str | None) -> int:
-    db_path = Path(io.cwd) / ".whiletrue" / "state.db"
-    if not db_path.exists():
-        io.err("No runs yet (.whiletrue/state.db not found)\n")
-        return EXIT.failed
-    loaded = _load(io, file)
+async def _validate(io: Io, args: Args, rest: list[str]) -> int:
+    loaded = project_module.load(io, args.file)
     if isinstance(loaded, int):
         return loaded
-    if not _validated(io, loaded):
+    if not validated(io, loaded):
         return EXIT.failed
-    store = SqliteStore(db_path)
-    try:
-        if run_id is None:
-            latest = store.latest_run()
-            run_id = latest.id if latest else ""
-        try:
-            recording = load_recording(store, run_id)
-        except ReplayError as error:
-            io.err(f"{error}\n")
-            return EXIT.failed
-        if recording.pipeline_hash != hash_pipeline(loaded.config):
-            io.out("note: the pipeline changed since the recorded run\n")
-        result = await run_pipeline(
-            registry=loaded.registry,
-            config=loaded.config,
-            store=store,
-            cwd=loaded.cwd,
-            signal=io.signal,
-            items=recording.items,
-            replay=recording.steps,
-        )
-        io.out(f"replay of {recording.run_id}: run {result.run_id}: {result.status}\n")
-        differences = [
-            f"  {o.item_id}: recorded {recording.item_states.get(o.item_id)}, replayed {o.state}"
-            for o in result.items
-            if recording.item_states.get(o.item_id) != o.state
-        ]
-        if result.status != recording.status or differences:
-            io.err(
-                f"replay differs: recorded {recording.status}, replayed {result.status}\n"
-                + "".join(f"{d}\n" for d in differences)
-            )
-            return EXIT.failed
-        io.out(f"replay matches the recorded run ({recording.status})\n")
-        return EXIT.ok
-    finally:
-        store.close()
-
-
-async def _attach(io: Io) -> int:
-    tmux = io.tmux or TmuxController(
-        session_name(io.cwd), binary=os.environ.get("WHILETRUE_TMUX_BIN", "tmux")
-    )
-    if not await tmux.has_session():
-        io.err(
-            f"No tmux session {tmux.session!r}: it exists while a run uses an interactive agent\n"
-        )
-        return EXIT.failed
-    argv = tmux.attach_argv()
-    if io.attach is not None:
-        io.attach(argv)
-    else:  # pragma: no cover (replaces this process)
-        os.execvp(argv[0], argv)
+    io.out(f"{loaded.config.file}: ok\n")
     return EXIT.ok
 
 
-async def _locked(io: Io, loaded: _Loaded, action: Callable[[], Awaitable[int]]) -> int:
-    """Runs an action that changes a run while holding the project's run lock."""
-    lock = ops.RunLock(loaded.cwd)
-    if not lock.acquire():
-        io.err(f"Another whiletrue run is active in this project (pid {lock.holder()})\n")
-        return EXIT.failed
-    try:
-        return await action()
-    finally:
-        lock.release()
-
-
-async def _plan_items(io: Io, loaded: _Loaded) -> int:
-    """With a source, `plan` also lists the items and rejects dependency cycles."""
-    if "source" not in loaded.config.extra:
-        return EXIT.ok
-    try:
-        items = await ops.source_items(loaded)
-    except Exception as error:
-        io.err(f"Cannot fetch items: {error}\n")
-        return EXIT.failed
-    items = items or []
-    io.out(f"items ({len(items)}, up to {loaded.config.parallel} at once):\n")
-    for item in items:
-        waits = f"  after {', '.join(item.depends_on)}" if item.depends_on else ""
-        io.out(f"  {item.id}{waits}\n")
-    problem = ops.cycle_error(items)
-    if problem is not None:
-        io.err(f"{problem}\n")
-        return EXIT.failed
-    return EXIT.ok
-
-
-async def _with_loaded(io: Io, file: str, action: Callable[[_Loaded], Awaitable[int]]) -> int:
-    loaded = _load(io, file)
+async def _plan(io: Io, args: Args, rest: list[str]) -> int:
+    loaded = project_module.load(io, args.file)
     if isinstance(loaded, int):
         return loaded
-    if not _validated(io, loaded):
+    if not validated(io, loaded):
         return EXIT.failed
-    return await action(loaded)
+    io.out(f"{loaded.config.name}\n{chr(10).join(commands.render_tree(loaded.config.root))}\n")
+    return await commands.plan_items(io, loaded)
 
 
-async def _run_locked(io: Io, loaded: _Loaded) -> int:
-    return await _locked(io, loaded, lambda: _run_loaded(io, loaded))
+async def _run(io: Io, args: Args, rest: list[str]) -> int:
+    async def action(loaded: Loaded) -> int:
+        return await locked(io, loaded, lambda: commands.run_loaded(io, loaded))
+
+    return await with_loaded(io, args.file, action)
 
 
-async def _panel(io: Io) -> int:  # pragma: no cover (interactive terminal loop)
-    from whiletrue.cli.panel import run_panel  # noqa: PLC0415
+async def _resume(io: Io, args: Args, rest: list[str]) -> int:
+    async def action(loaded: Loaded) -> int:
+        return await locked(
+            io, loaded, lambda: ops.resume(io, loaded, _arg(rest), lock_hash(loaded.cwd))
+        )
 
-    store = gates.open_store(io)
-    if store is None:
-        return EXIT.failed
-    tmux = io.tmux or TmuxController(
-        session_name(io.cwd), binary=os.environ.get("WHILETRUE_TMUX_BIN", "tmux")
-    )
-    try:
-        return await run_panel(io, store, tmux)
-    finally:
-        store.close()
+    return await with_loaded(io, args.file, action)
 
 
-def _lock_hash(cwd: str) -> str | None:
-    path = Path(cwd) / LOCK_FILE
-    return sha256_file(path) if path.is_file() else None
+async def _rerun(io: Io, args: Args, rest: list[str]) -> int:
+    item = _arg(rest)
+    if item is None:
+        io.err("Usage: whiletrue rerun <item> [--from <step>]\n")
+        return EXIT.usage
+
+    async def action(loaded: Loaded) -> int:
+        return await locked(
+            io,
+            loaded,
+            lambda: ops.rerun(io, loaded, item, args.from_step, lock_hash(loaded.cwd)),
+        )
+
+    return await with_loaded(io, args.file, action)
 
 
-def _lock(io: Io, file: str) -> int:
-    loaded = _load(io, file, check_pins=False)
-    if isinstance(loaded, int):
-        return loaded
-    write_lock(Path(loaded.cwd) / LOCK_FILE, loaded.registry.plugin_versions())
-    io.out(f"wrote {LOCK_FILE}\n")
-    return EXIT.ok
+async def _comment(io: Io, args: Args, rest: list[str]) -> int:
+    return gates.comment(io, _arg(rest), " ".join(rest[1:]) if len(rest) > 1 else None)
 
 
-def _iso(ms: int) -> str:
-    return (
-        datetime.fromtimestamp(ms / 1000, UTC)
-        .isoformat(timespec="milliseconds")
-        .replace("+00:00", "Z")
-    )
+def _sync(fn: Callable[[Io, Args, list[str]], int]) -> Handler:
+    """Wrap a command that does not await so every command has one shape."""
+
+    async def handler(io: Io, args: Args, rest: list[str]) -> int:
+        return fn(io, args, rest)
+
+    return handler
 
 
-def _status(io: Io, run_id: str | None) -> int:
-    db_path = Path(io.cwd) / ".whiletrue" / "state.db"
-    if not db_path.exists():
-        io.err("No runs yet (.whiletrue/state.db not found)\n")
-        return EXIT.failed
-    store = SqliteStore(db_path)
-    try:
-        run = store.get_run(run_id) if run_id else store.latest_run()
-        if run is None:
-            io.err(f'No run "{run_id}"\n' if run_id else "No runs yet\n")
-            return EXIT.failed
-        io.out(f"run {run.id}  {run.status}  started {_iso(run.started_at)}\n")
-        steps = store.list_steps(run.id)
-        for item in store.list_items(run.id):
-            item_steps = [s for s in steps if s.item_id == item.id]
-            cost = sum(s.cost_usd for s in item_steps)
-            blocked = ""
-            if item.state == "pending":
-                states = store.list_events(run.id, item_id=item.id, type="item.state")
-                by = states[-1].data.get("blocked_by") if states else None
-                blocked = f"  — blocked by {', '.join(by)}" if by else ""
-            io.out(
-                f"  {item.id}  {item.state}  steps={len(item_steps)}  cost=${cost:.4f}{blocked}\n"
-            )
-            for s in item_steps:
-                port = f"  {s.port}" if s.port else ""
-                error = f"  — {s.error}" if s.error else ""
-                io.out(f"    {s.node_path}#{s.attempt}  {s.status}{port}{error}\n")
-        waiting = store.list_parks(undecided_only=True)
-        if waiting:
-            io.out("waiting for a person:\n")
-            for park in waiting:
-                io.out(
-                    f"  {park.item_id}  {park.what} at {park.node_path}  "
-                    f"(whiletrue approve {park.item_id} | reject {park.item_id} --note ...)\n"
-                )
-        return EXIT.ok
-    finally:
-        store.close()
-
-
-@dataclass
-class _Args:
-    positionals: list[str]
-    file: str = "whiletrue.yaml"
-    force: bool = False
-    help: bool = False
-    note: str | None = None
-    step: str | None = None
-    from_step: str | None = None
-    follow: bool = False
-    yes: bool = False
-
-
-def _parse_args(argv: list[str]) -> _Args:
-    args = _Args(positionals=[])
-    it = iter(argv)
-    for arg in it:
-        if arg in ("-f", "--file"):
-            value = next(it, None)
-            if value is None:
-                raise ValueError(f"Option '{arg}' argument missing")
-            args.file = value
-        elif arg.startswith("--file="):
-            args.file = arg.split("=", 1)[1]
-        elif arg == "--follow":
-            args.follow = True
-        elif arg == "--from":
-            value = next(it, None)
-            if value is None:
-                raise ValueError(f"Option '{arg}' argument missing")
-            args.from_step = value
-        elif arg.startswith("--from="):
-            args.from_step = arg.split("=", 1)[1]
-        elif arg in ("-m", "--note", "--step"):
-            value = next(it, None)
-            if value is None:
-                raise ValueError(f"Option '{arg}' argument missing")
-            if arg == "--step":
-                args.step = value
-            else:
-                args.note = value
-        elif arg.startswith(("--note=", "--step=")):
-            name, _, value = arg.partition("=")
-            if name == "--step":
-                args.step = value
-            else:
-                args.note = value
-        elif arg == "--force":
-            args.force = True
-        elif arg == "--yes":
-            args.yes = True
-        elif arg in ("-h", "--help"):
-            args.help = True
-        elif arg.startswith("-") and arg != "-":
-            raise ValueError(f"Unknown option '{arg}'")
-        else:
-            args.positionals.append(arg)
-    return args
+#: Every command: its name to what runs it. Adding a command is adding a line here.
+COMMANDS: dict[str, Handler] = {
+    "init": _sync(lambda io, args, rest: commands.init(io, args.force)),
+    "validate": _validate,
+    "plan": _plan,
+    "run": _run,
+    "replay": lambda io, args, rest: commands.replay(io, args.file, _arg(rest)),
+    "attach": lambda io, args, rest: commands.attach(io),
+    "panel": lambda io, args, rest: commands.panel(io),
+    "resume": _resume,
+    "rerun": _rerun,
+    "cancel": _sync(lambda io, args, rest: ops.cancel(io, _arg(rest))),
+    "logs": lambda io, args, rest: ops.logs(io, _arg(rest), args.follow),
+    "cost": _sync(lambda io, args, rest: ops.cost(io, _arg(rest))),
+    "approve": _sync(
+        lambda io, args, rest: gates.decide(io, "approved", _arg(rest), args.note, args.step)
+    ),
+    "reject": _sync(
+        lambda io, args, rest: gates.decide(io, "rejected", _arg(rest), args.note, args.step)
+    ),
+    "comment": _comment,
+    "history": _sync(lambda io, args, rest: gates.history(io, _arg(rest))),
+    "learnings": _sync(lambda io, args, rest: gates.learnings(io, _arg(rest), _arg(rest, 1))),
+    "rsi": _sync(lambda io, args, rest: rsi_cmd.run(io, _arg(rest), _arg(rest, 1), yes=args.yes)),
+    "lock": _sync(lambda io, args, rest: commands.lock(io, args.file)),
+    "status": _sync(lambda io, args, rest: commands.status(io, _arg(rest))),
+}
 
 
 async def main(argv: list[str], io: Io) -> int:
     try:
-        args = _parse_args(argv)
+        args = parse_args(argv)
     except ValueError as error:
         io.err(f"{error}\n{USAGE}")
         return EXIT.usage
@@ -472,90 +165,11 @@ async def main(argv: list[str], io: Io) -> int:
         io.err(USAGE)
         return EXIT.usage
     command, *rest = args.positionals
-
-    match command:
-        case "init":
-            return _init(io, args.force)
-        case "validate":
-            loaded = _load(io, args.file)
-            if isinstance(loaded, int):
-                return loaded
-            if not _validated(io, loaded):
-                return EXIT.failed
-            io.out(f"{loaded.config.file}: ok\n")
-            return EXIT.ok
-        case "plan":
-            loaded = _load(io, args.file)
-            if isinstance(loaded, int):
-                return loaded
-            if not _validated(io, loaded):
-                return EXIT.failed
-            io.out(f"{loaded.config.name}\n{chr(10).join(_render_tree(loaded.config.root))}\n")
-            return await _plan_items(io, loaded)
-        case "run":
-            return await _with_loaded(io, args.file, lambda loaded: _run_locked(io, loaded))
-        case "replay":
-            return await _replay(io, args.file, rest[0] if rest else None)
-        case "attach":
-            return await _attach(io)
-        case "panel":
-            return await _panel(io)
-        case "resume":
-            return await _with_loaded(
-                io,
-                args.file,
-                lambda loaded: _locked(
-                    io,
-                    loaded,
-                    lambda: ops.resume(
-                        io, loaded, rest[0] if rest else None, _lock_hash(loaded.cwd)
-                    ),
-                ),
-            )
-        case "rerun":
-            if not rest:
-                io.err("Usage: whiletrue rerun <item> [--from <step>]\n")
-                return EXIT.usage
-            return await _with_loaded(
-                io,
-                args.file,
-                lambda loaded: _locked(
-                    io,
-                    loaded,
-                    lambda: ops.rerun(io, loaded, rest[0], args.from_step, _lock_hash(loaded.cwd)),
-                ),
-            )
-        case "cancel":
-            return ops.cancel(io, rest[0] if rest else None)
-        case "logs":
-            return await ops.logs(io, rest[0] if rest else None, args.follow)
-        case "cost":
-            return ops.cost(io, rest[0] if rest else None)
-        case "approve":
-            return gates.decide(io, "approved", rest[0] if rest else None, args.note, args.step)
-        case "reject":
-            return gates.decide(io, "rejected", rest[0] if rest else None, args.note, args.step)
-        case "comment":
-            return gates.comment(
-                io, rest[0] if rest else None, " ".join(rest[1:]) if len(rest) > 1 else None
-            )
-        case "history":
-            return gates.history(io, rest[0] if rest else None)
-        case "learnings":
-            return gates.learnings(
-                io, rest[0] if rest else None, rest[1] if len(rest) > 1 else None
-            )
-        case "rsi":
-            return rsi_cmd.run(
-                io, rest[0] if rest else None, rest[1] if len(rest) > 1 else None, yes=args.yes
-            )
-        case "lock":
-            return _lock(io, args.file)
-        case "status":
-            return _status(io, rest[0] if rest else None)
-        case _:
-            io.err(f'Unknown command "{command}"\n{USAGE}')
-            return EXIT.usage
+    handler = COMMANDS.get(command)
+    if handler is None:
+        io.err(f'Unknown command "{command}"\n{USAGE}')
+        return EXIT.usage
+    return await handler(io, args, rest)
 
 
 async def _amain(argv: list[str]) -> int:
