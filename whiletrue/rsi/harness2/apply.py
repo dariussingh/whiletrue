@@ -104,7 +104,7 @@ def _adoption_nodes(setting: RsiSetting, template: PipelineNode) -> list[Pipelin
     if adopt == "never":
         return []
     adopt_node = PipelineNode(ADOPT_ID, "rsi.adopt", {}, [], {}, loc)
-    if adopt == "auto":
+    if adopt in ("auto", "model"):
         return [adopt_node]
     gate = PipelineNode(
         f"{REVIEW_ID}_gate",

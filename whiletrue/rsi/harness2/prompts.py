@@ -563,6 +563,40 @@ def experience(profile: Profile) -> str:
     )
 
 
+def review(profile: Profile) -> str:
+    """A model decides whether a proposed harness change should be adopted (adopt: model)."""
+    return _tidy(
+        "\n\n".join(
+            [
+                "You are reviewing ONE proposed change to an autonomous coding agent's harness "
+                "and deciding whether it should be adopted, so that every later item runs on it. "
+                "Nobody else will look at it before it takes effect: you are the gate.",
+                _work(profile),
+                _lens(profile),
+                "# WHAT YOU HAVE\n\n"
+                "    context/harness/         the harness as it is today\n"
+                "    context/pool/<label>/    the proposed harness, its diff (`harness.diff`) and "
+                "the rollout that used it\n"
+                "    context/rollouts/        what the unmodified harness did\n"
+                "    context/decisions/       why this candidate was chosen, and what each edit did",
+                "# HOW TO DECIDE\n\n"
+                "Approve only if EVERY changed line is supported by a specific moment in a "
+                "trajectory, is a fact or rule that will hold for later items in this "
+                f"{profile.domain_word} and not just this one, and is worth its always-on cost. "
+                "Reject if any edit is speculation, a guessed fact, a restatement of what the "
+                "harness already says, overfitted to this item, or if the rollout that used the "
+                "change did no better than the base. An edit that is merely harmless is not worth "
+                "adopting. Rejecting is a normal, cheap outcome: the current harness stays.",
+                ANSWER_FREE,
+                EVIDENCE_BOUNDARY,
+                "# OUTPUT FORMAT\n\nReason first, then the decision as the last thing:\n\n"
+                "<why>\nAt most 6 lines. Name the edit that decided it.\n</why>\n\n"
+                "<decision>approve</decision> or <decision>reject</decision>",
+            ]
+        )
+    )
+
+
 def mode_note(mode: Mode) -> str:
     """One line for logs: how the recursion budget is spent."""
     return (

@@ -61,6 +61,20 @@ async def _adopt(input: PortValues, ctx: StepContext[EmptyConfig]) -> Emit:
                 "paths": proposal.restricted,
             },
         )
+    if proposal.adopt == "model":
+        if proposal.restricted and proposal.model_decision == "approve":
+            return Emit(
+                "needs_human",
+                {
+                    "reason": "rsi_restricted",
+                    "detail": "a model approved a harness that changes paths that execute code; "
+                    f"a person must adopt it with `whiletrue rsi adopt {ctx.item_id} --yes`",
+                    "paths": proposal.restricted,
+                },
+            )
+        if proposal.model_decision != "approve":
+            proposals.set_status(project, proposal, "recorded")
+            return Emit("ok", input.get("in"))
     surface = SURFACES[proposal.surface]
     if proposal.changed:
         harness_tree.write_tree(surface, proposal.chosen, Path(ctx.cwd), stubs=False)

@@ -64,6 +64,8 @@ def role_of(prompt: str) -> str:
         return "propose-DOM"
     if "composing THE final harness" in prompt or "composing checkpoint" in prompt:
         return "compose"
+    if "reviewing ONE proposed change" in prompt:
+        return "review"
     if "choosing which of" in prompt:
         return "select"
     if "complete record of one improvement round" in prompt:
@@ -110,6 +112,8 @@ class ScriptedRunner:
         elif role == "compose":
             self._compose(cwd)
             text = text or "<notes>kept -> dom1 -> moment</notes>"
+        elif role == "review":
+            text = text or "<why>supported by dom1 step 2</why>\n<decision>approve</decision>"
         elif role == "select":
             text = text or "<why>cleaner</why>\n```choice\nA\n```"
         else:

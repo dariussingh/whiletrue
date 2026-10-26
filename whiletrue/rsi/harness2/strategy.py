@@ -41,7 +41,13 @@ from whiletrue.rsi.harness2.env import BudgetStop, Env
 from whiletrue.rsi.harness2.ledger import BudgetError, Ledger
 from whiletrue.rsi.harness2.library import Library
 from whiletrue.rsi.harness2.rollout import Rollout, run_rollout
-from whiletrue.rsi.harness2.sessions import EditResult, edit_stage, reflect_stage, select_stage
+from whiletrue.rsi.harness2.sessions import (
+    EditResult,
+    edit_stage,
+    reflect_stage,
+    review_stage,
+    select_stage,
+)
 from whiletrue.rsi.harness2.surfaces import SURFACE_FOR_RUNNER, SURFACES
 from whiletrue.rsi.harness2.tree import Tree
 
@@ -258,24 +264,34 @@ async def _finish(env: Env, outcome: _Outcome, base: Tree) -> Emit:
         why=selection.why,
     )
     project = Path(str(env.ctx.scope.get("project_dir") or env.ctx.cwd))
-    proposals.save(
-        project,
-        proposals.make(
-            item_id=env.item_id,
-            domain=env.library.domain,
-            surface_name=env.surface.name,
-            base=base,
-            chosen=chosen_tree,
-            chosen_label=chosen.label,
-            restricted=harness_tree.restricted_changes(env.surface, base, chosen_tree),
-            experience=experience,
-            why=selection.why,
-            adopt=env.cfg.adopt,
-            ledger=env.ledger.summary() | {"spent": round(env.spent, 6)},
-            run_id=env.ctx.run_id,
-            library=str(env.library.root),
-        ),
+    proposal = proposals.make(
+        item_id=env.item_id,
+        domain=env.library.domain,
+        surface_name=env.surface.name,
+        base=base,
+        chosen=chosen_tree,
+        chosen_label=chosen.label,
+        restricted=harness_tree.restricted_changes(env.surface, base, chosen_tree),
+        experience=experience,
+        why=selection.why,
+        adopt=env.cfg.adopt,
+        ledger=env.ledger.summary() | {"spent": round(env.spent, 6)},
+        run_id=env.ctx.run_id,
+        library=str(env.library.root),
     )
+    if env.cfg.adopt == "model" and proposal.changed:
+        verdict = await review_stage(
+            env,
+            base=base,
+            bases=[r.view for r in outcome.bases.values()],
+            chosen=context.PoolEntry(chosen.label, chosen_tree, chosen.view),
+            why=selection.why,
+            edits=experience.edits,
+        )
+        proposal.model_decision = "approve" if verdict.approved else "reject"
+        proposal.model_why = verdict.why or verdict.error
+        proposal.ledger["spent"] = round(env.spent, 6)
+    proposals.save(project, proposal)
     try:
         env.ledger.assert_identity()
     except BudgetError as error:
@@ -383,6 +399,7 @@ def _validate(cfg: Harness2Config, vctx: ValidateContext) -> list[ConfigIssue]:
         ("improver", cfg.improver),
         ("selector", cfg.selector_spec()),
         ("reflector", cfg.reflector_spec()),
+        ("reviewer", cfg.reviewer_spec()),
     ):
         if vctx.registry.get_runner(spec.runner) is None:
             issues.append(ConfigIssue("error", f'`rsi.{name}`: unknown runner "{spec.runner}"'))

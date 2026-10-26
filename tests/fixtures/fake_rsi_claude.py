@@ -49,6 +49,8 @@ elif "composing THE final harness" in prompt or "composing checkpoint" in prompt
                 merged.append(line)
     harness.write_text("\n".join(merged) + "\n")
     finish("<notes>kept -> dom1 -> moment</notes>")
+elif "reviewing ONE proposed change" in prompt:
+    finish("<why>supported</why>\n<decision>approve</decision>")
 elif "choosing which of" in prompt:
     finish("<why>cleaner</why>\n```choice\nA\n```")
 elif "complete record of one improvement round" in prompt:

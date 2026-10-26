@@ -164,3 +164,12 @@ async def test_rsi_commands_handle_missing_input(cli: Cli) -> None:
         await cli("rsi", "diff", "nope") == EXIT.failed and 'No rsi proposal for "nope"' in cli.err
     )
     assert await cli("rsi", "adopt", "nope") == EXIT.failed
+
+
+async def test_a_model_can_approve_instead_of_a_person(cli: Cli) -> None:
+    write(cli, "{ k: 1, budget_usd: 5, adopt: model }")
+    assert await cli("run") == EXIT.ok  # no human gate
+    assert "BE CAREFUL" in (cli.dir / "CLAUDE.md").read_text()
+    cli.reset()
+    assert await cli("rsi", "status") == EXIT.ok
+    assert "adopted" in cli.out and "model: approve" in cli.out

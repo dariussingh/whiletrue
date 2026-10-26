@@ -39,7 +39,7 @@ from whiletrue.rsi.harness2.ledger import Mode
 _CHOICE = re.compile(r"```choice\s*\n?\s*([A-Za-z0-9_-]+)\s*\n?\s*```", re.DOTALL)
 _BLOCK = {
     name: re.compile(rf"<{name}>(.*?)</{name}>", re.DOTALL)
-    for name in ("why", "experience", "edits")
+    for name in ("why", "experience", "edits", "decision")
 }
 
 Evidence = Literal["deliverable", "trajectory"]
@@ -112,7 +112,7 @@ def parse_choice(reply: str, valid: Sequence[str]) -> str | None:
     return choice if choice in valid else None
 
 
-def parse_block(reply: str, name: Literal["why", "experience", "edits"]) -> str:
+def parse_block(reply: str, name: Literal["why", "experience", "edits", "decision"]) -> str:
     """The text of the last `<name>...</name>` block in a reply, or an empty string."""
     matches = _BLOCK[name].findall(reply)
     return matches[-1].strip() if matches else ""

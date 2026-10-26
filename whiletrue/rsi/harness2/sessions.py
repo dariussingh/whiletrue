@@ -355,3 +355,55 @@ async def reflect_stage(
         return Experience()
     _store(workdir, key, reply=outcome.text)
     return parse_experience(outcome.text)
+
+
+@dataclass
+class ReviewResult:
+    approved: bool
+    why: str = ""
+    error: str = ""
+
+
+async def review_stage(
+    env: Env,
+    *,
+    base: Tree,
+    bases: Sequence[context.RolloutView],
+    chosen: context.PoolEntry,
+    why: str,
+    edits: str,
+) -> ReviewResult:
+    """A model decides whether the proposed harness should be adopted.
+
+    It fails closed: a failed session, or any answer that is not exactly `approve`, rejects.
+    """
+    workdir = env.dir / "stages" / "review"
+    notes = f"Chosen candidate: `{chosen.label}`.\n\nWhy it was chosen:\n{why or '(trivial pick)'}"
+    if edits.strip():
+        notes += f"\n\nWhat each edit did (from the reflection):\n{edits.strip()}"
+    built = context.build(
+        workdir / "context",
+        env.surface,
+        item_id=env.item_id,
+        task=env.task,
+        rollouts=bases,
+        harness=base,
+        pool=[chosen],
+        decisions={"selection": notes},
+    )
+    mission = context.mission(built, job=P.review(env.profile))
+    (workdir / "MISSION.md").write_text(mission, encoding="utf-8")
+    key = _digest(workdir / "context", mission)
+    cached = _load(workdir, key)
+    if cached is not None:
+        reply = str(cached["reply"])
+    else:
+        env.check_budget()
+        spec = env.cfg.reviewer_spec().model_copy(update={"tools": ["Read", "Glob", "Grep"]})
+        outcome = await run_session(env, spec, prompt=mission, cwd=workdir, label="review")
+        if not outcome.ok:
+            return ReviewResult(False, error=f"reviewer failed: {outcome.error}")
+        reply = outcome.text
+        _store(workdir, key, reply=reply)
+    decision = parse_block(reply, "decision").strip().lower()
+    return ReviewResult(decision == "approve", parse_block(reply, "why"))

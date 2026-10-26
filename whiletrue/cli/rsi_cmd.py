@@ -50,10 +50,11 @@ def _status(io: Io, project: Path) -> int:
         changed = "changed" if p.changed else "unchanged"
         spent = p.ledger.get("spent", 0.0)
         restricted = f"  needs approval: {', '.join(p.restricted)}" if p.restricted else ""
+        model = f"  model: {p.model_decision}" if p.model_decision else ""
         io.out(
             f"{p.item_id}  {p.status}  {p.chosen_label}  {changed}  "
             f"{p.ledger.get('rollouts', 0)} rollouts, {p.ledger.get('sessions', 0)} sessions, "
-            f"${float(spent):.2f}{restricted}\n"
+            f"${float(spent):.2f}{model}{restricted}\n"
         )
     return EXIT.ok
 

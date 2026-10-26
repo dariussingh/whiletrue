@@ -23,7 +23,7 @@ rsi:
   k: 1                     # recursion budget; see "What it costs"
   mode: parallel           # parallel | sequential
   budget_usd: 8            # hard cap per item, rollouts and sessions together
-  adopt: approve           # approve (default) | auto | never
+  adopt: approve           # approve (a person, default) | model | auto | never
   domain: "{{item.milestone}}"   # what "the same kind of work" means; default: the project name
   scope: [implement]       # step ids to wrap; default: the leading safe steps around the first agent
   surface: claude-code     # claude-code | codex: whose files are the harness
@@ -33,6 +33,7 @@ rsi:
     limits: { budget_usd: 1.5, turns: 40, wall: 20m }
   selector: { ... }        # optional; defaults to the improver
   reflector: { ... }       # optional; defaults to the improver
+  reviewer: { ... }        # optional; with adopt: model, defaults to the improver
   concurrency: 2           # rollouts at once inside one item
   when: "item.number > 1"  # CEL; when false the steps run once, plainly
 ```
@@ -66,10 +67,11 @@ The chosen harness is a *proposal*. What happens next is `adopt`:
 | `adopt` | What happens |
 | --- | --- |
 | `approve` | The item parks at a `human.approve` gate (`what: harness`) when the harness changed. `whiletrue approve <item>` and `resume` write it into the item's workspace (so it is in the item's commit and PR) and store the lesson. `reject` leaves the harness alone; the work is kept. |
-| `auto` | Adopted without asking, unless it changes files that execute code, which park the item. |
+| `model` | A reviewing model decides, as in the Harness² paper. It reads the proposed diff, the trajectories and why the candidate was chosen, and answers `approve` or `reject`. It fails closed: a failed session or any answer other than exactly `approve` rejects. On approve the harness is adopted with no person involved; on reject the current harness stays and the proposal is kept, so you can still `whiletrue rsi adopt` it. Changes to files that execute code still need a person. |
+| `auto` | Adopted without a review, unless it changes files that execute code, which park the item. |
 | `never` | Recorded only. Adopt it later by hand. |
 
-Files that execute code (scripts, hooks) are never adopted without a person: `whiletrue rsi adopt <item> --yes` after reading the diff.
+The default is a person because a harness change affects every later item. `model` trades that check for speed and costs one more session per item with a changed harness (read-only, usually cheap). Files that execute code (scripts, hooks) are never adopted without a person, in any mode: `whiletrue rsi adopt <item> --yes` after reading the diff.
 
 ```bash
 whiletrue rsi status            # every item's proposal, chosen candidate and spend

@@ -451,7 +451,7 @@ agents:                     # or per agent file: `rsi:` in the header
     k: 1                    # task-level recursion budget
     mode: parallel          # parallel | sequential
     domain: "item.labels[0]"   # expression; default is the source label or project
-    adopt: approve          # approve (default) | auto | never
+    adopt: approve          # approve (a person, default) | model | auto | never
     evidence: blind         # blind (default) | gates
     budget_usd: 12          # required; hard cap, parks the item when reached
     when: "iter.index > 1"  # optional guard
@@ -476,7 +476,7 @@ agents:                     # or per agent file: `rsi:` in the header
 
 1. **Off unless asked.** `rsi: false` is the default and leaves behavior unchanged. This is regression-tested.
 2. **Answer-free by default.** Evidence and selection never contain a verifier's verdict, as in the paper. A coding pipeline already has deterministic gates, so `evidence: gates` and `selection: gate-first` are opt-in (OQ-12).
-3. **A human adopts.** Candidate harnesses live in worktrees. Adopting one into the repo is a diff at a `human.approve` gate. Hooks, scripts and permission rules are never adopted automatically, because they execute code.
+3. **A human adopts by default.** Candidate harnesses live in workspace copies. Adopting one into the repo is a diff at a `human.approve` gate; `adopt: model` lets a reviewing model decide instead, as in the paper. Hooks, scripts and permission rules are never adopted automatically, because they execute code.
 4. **Bounded.** A required budget, the `4k` and `3k` identity checked at run time, and a `when:` guard.
 5. **Resumable.** Rollouts are journaled; a finished rollout is reused through its completion marker and harness fingerprint.
 6. **Core stays clean.** `whiletrue.rsi` is a plugin on the public API. `whiletrue.core` imports nothing from it.

@@ -68,8 +68,9 @@ class Harness2Config(BaseModel):
     #: The area items belong to; later items read earlier items' adopted harnesses. Empty: the
     #: project directory name.
     domain: str = ""
-    #: What happens to the chosen harness: ask a person, apply it, or only record it.
-    adopt: Literal["approve", "auto", "never"] = "approve"
+    #: What happens to the chosen harness: a person approves it (default), a model reviews it
+    #: (as in the Harness² paper), it is applied without a review, or it is only recorded.
+    adopt: Literal["approve", "model", "auto", "never"] = "approve"
     #: Hard cap on what one item may spend on rsi (rollouts and sessions together).
     budget_usd: PositiveFloat = DEFAULT_BUDGET_USD
     #: Which framework's files are the harness.
@@ -77,6 +78,8 @@ class Harness2Config(BaseModel):
     improver: SessionSpec = Field(default_factory=SessionSpec)
     selector: SessionSpec | None = None
     reflector: SessionSpec | None = None
+    #: With `adopt: model`, the session that approves or rejects the proposal.
+    reviewer: SessionSpec | None = None
     #: Rollouts run at once inside one item.
     concurrency: PositiveInt = 2
     #: Where the experience library lives, relative to the project.
@@ -95,6 +98,9 @@ class Harness2Config(BaseModel):
 
     def reflector_spec(self) -> SessionSpec:
         return self.reflector or self.improver
+
+    def reviewer_spec(self) -> SessionSpec:
+        return self.reviewer or self.improver
 
 
 class RsiSetting(BaseModel):

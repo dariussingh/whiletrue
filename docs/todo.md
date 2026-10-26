@@ -135,7 +135,7 @@ _Harnessing-level recursion and humans_
 
 88. [x] Per-domain experience library under `.whiletrue/rsi/` (adopted harness plus lessons), read before each item and appended after; domain from `rsi.domain`. (OQ-13) _(Per-domain library under `.whiletrue/rsi/library`; same-domain items that run at once may not see each other.)_
 89. [~] Experience reflector as an agent step proposing evidence-supported lessons into `history` and `learnings` (approval before any lesson reaches an agent). _(The reflector feeds the experience library, which improvers read; it does not write to `history`/`learnings`.)_
-90. [x] Adoption: `rsi.adopt: approve | auto | never`; the adopted harness is a diff at a `human.approve` gate (`what: harness`), committed on approval, discarded on `rejected`. Hooks and scripts always need approval. (OQ-14) _(`approve | auto | never`; executable paths always need a person.)_
+90. [x] Adoption: `rsi.adopt: approve | auto | never`; the adopted harness is a diff at a `human.approve` gate (`what: harness`), committed on approval, discarded on `rejected`. Hooks and scripts always need approval. (OQ-14) _(`approve | auto | never`; executable paths always need a person.)_ _(Also `adopt: model`: a reviewing model approves or rejects, as in the paper; fails closed.)_
 
 _CLI, tests, evaluation, docs_
 

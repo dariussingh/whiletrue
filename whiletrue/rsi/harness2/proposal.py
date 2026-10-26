@@ -38,6 +38,9 @@ class Proposal:
     #: Absolute path of the experience library the lesson goes to on adoption.
     library: str = ""
     status: Status = "pending"
+    #: With `adopt: model`: the reviewing model's decision ("approve" or "reject") and reason.
+    model_decision: str = ""
+    model_why: str = ""
 
     @property
     def changed(self) -> bool:
