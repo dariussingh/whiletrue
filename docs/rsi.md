@@ -95,6 +95,27 @@ whiletrue rsi reset <item>      # forget an item's rollouts and proposal
 
 Claude Code hooks, permission settings and MCP servers are not on the surface: `rsi` cannot change them. A harness is validated before any rollout (skills need a trigger line and matching frontmatter, scripts must exist and compile, the always-on text has a size cap). A proposal that fails gets one retry with the problems listed, then keeps the current harness.
 
+## A first pilot (2026-10-26)
+
+A small run with real Claude Code, to see the machinery work and what it costs. It is not evidence that `rsi` helps.
+
+Setup: three items that each add a feature module to a tiny repo. A test enforces a convention the task never mentions (every module must be listed in `features.ALL`). Each item had to pass its own tests plus a registry test. One run without `rsi`, one with `rsi: { k: 1, budget_usd: 1.8, adopt: auto }`, items in sequence.
+
+| | Without `rsi` | With `rsi` |
+| --- | --- | --- |
+| All three items passed | yes | yes |
+| Cost | $0.46 | $4.06 (about 9 times) |
+| Agent runs per item (item 1, 2, 3) | 2, 1, 1 | 1, 2, 1 (in the base rollouts) |
+| Harness changed | n/a | items 2 and 3: a "Adding a feature" section with the registry rule |
+
+What it shows:
+
+- The whole cycle works end to end on a real agent, including resume-safe stages, the budget cap and adoption.
+- On item 1 the candidate harnesses did worse than the base: their rollouts hit sandbox permission denials and gave up, so selection fell back to the base output, as designed.
+- The adopted harness wrote down a true repository fact. But the baseline already solved every item cheaply (after item 1 the convention is visible in the repo), so there was nothing for the harness to improve. The extra spend bought no measurable gain here.
+
+Treat `rsi` as an experiment: try it on work where the agent repeatedly trips over something it could be told, and compare cost and retries with it off.
+
 ## Limits today
 
 - Rollouts are copies of the workspace without `.git` (set `copy_git: true` to include it), so a step that needs git history should say so.
