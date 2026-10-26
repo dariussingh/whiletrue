@@ -1,5 +1,7 @@
 # Getting started (using whiletrue)
 
+Prefer a step-by-step walkthrough that ends with your own pipeline? See the [tutorial](tutorial.md).
+
 whiletrue runs a pipeline of steps (agents, shell commands, gates) around coding agents such as Claude Code. You describe the loop in `whiletrue.yaml`; whiletrue validates it before spending anything, runs it, and records every step so you can inspect or replay it.
 
 ## Install

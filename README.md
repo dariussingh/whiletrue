@@ -212,12 +212,13 @@ Structured `outputs:` work on all of them. See [choosing a backend](docs/authori
 | `history`, `learnings` | Audit trail and approved lessons for future agents. |
 | `lock` | Show or clear the run lock. |
 
-Full reference: [docs/cli.md](docs/cli.md).
+Full reference: [docs/cli.md](docs/cli.md). New here? Follow the [tutorial](docs/tutorial.md).
 
 ## Documentation
 
 Start at [docs/README.md](docs/README.md).
 
+- [Tutorial](docs/tutorial.md): from an empty folder to your own loop with gates, a reviewer, parallel tasks and a human approval.
 - [Getting started](docs/getting-started.md): a longer walkthrough, including interactive agents, gates and parallel items.
 - [Authoring guide](docs/authoring.md): writing pipelines and agents.
 - [Reference](docs/reference.md): every module, strategy, provider and config key.

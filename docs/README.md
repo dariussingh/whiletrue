@@ -4,6 +4,7 @@
 | -------------------------------------- | --------------------------------------------------------------------------------- |
 | [architecture.md](architecture.md)     | Full design: core model, runtime, state, agents, human gates, packages            |
 | [getting-started.md](getting-started.md) | User guide: install, first loop, commands, exit codes, safety defaults          |
+| [tutorial.md](tutorial.md)             | Tutorial: install, first loop, then build your own gates, review, parallel and human steps |
 | [authoring.md](authoring.md)           | Authoring guide: pipelines, composites, agents, choosing a backend                |
 | [cli.md](cli.md)                       | CLI reference: every command, option, exit code and environment variable          |
 | [reference.md](reference.md)           | User reference: modules, control flow, expressions, composites, recipes, replay   |
