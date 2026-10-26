@@ -240,14 +240,10 @@ Live tests against real agent CLIs are opt-in: `WHILETRUE_LIVE=1 uv run pytest t
 
 ## Recursive self-improvement
 
-Optional and off by default: `rsi: true` lets whiletrue improve the harness around your agent (prompts, skills, subagents) item by item with the Propose, Probe, Compose method from Harness², using isolated rollouts, blind selection and a per-domain experience library. A person approves what is adopted. It multiplies agent spend (about 7 times at `k: 1`) and is capped by `budget_usd`. See [docs/rsi.md](docs/rsi.md). Next: Gemini CLI support.
+Optional and off by default: `rsi: true` lets whiletrue improve the harness around your agent (prompts, skills, subagents) item by item with the Propose, Probe, Compose method from Harness², using isolated rollouts, blind selection and a per-domain experience library. A person approves what is adopted. It multiplies agent spend (about 7 times at `k: 1`) and is capped by `budget_usd`. Built on Harness² (Xu et al., Google Research, 2026); citation and license in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). See [docs/rsi.md](docs/rsi.md). Next: Gemini CLI support.
 
 <img src="docs/assets/rsi-architecture.svg" alt="rsi architecture: task-level recursion per item (reference rollouts, propose, INV and DOM candidates, compose, blind select, apply, budget) and harnessing-level recursion across items (reflect, a person adopts, experience library feeding the next item)" width="900">
 
-## Acknowledgements and citation
-
-The `rsi` feature builds on **Harness²: Recursive Agent Harnessing for an Open World** (Xu et al., Google Research, 2026; [arXiv:2610.14224](https://arxiv.org/abs/2610.14224), [code](https://github.com/google-research/harness2), Apache-2.0). If you use `rsi` in research, please cite the paper (BibTeX in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)). whiletrue is an independent project, not affiliated with Google or the Harness² authors.
-
 ## License
 
-MIT. See [LICENSE](LICENSE). Third-party code under `third_party/`, benchmarks, and datasets retain their upstream licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).
+MIT. See [LICENSE](LICENSE). Third-party code under `third_party/`, benchmarks, and datasets retain their upstream licenses; see [third-party notices](THIRD_PARTY_NOTICES.md), which also has the Harness² citation for `rsi`.

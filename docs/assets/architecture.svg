@@ -1,51 +1,57 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 668" width="960" height="668" role="img" aria-label="whiletrue architecture: CLI and whiletrue.yaml feed the core engine, which uses plugins to drive agent CLIs, git, GitHub and tmux, with state in SQLite">
-  <style>
-    text{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace;fill:#c9d1d9}
-    .t{font-size:15px;font-weight:700}.d{fill:#8b949e}.b{fill:#161b22;stroke:#30363d;stroke-width:1.5}
-    .g{fill:#0f2d1a;stroke:#2ea043;stroke-width:1.5}.c{fill:#0c2a4d;stroke:#388bfd;stroke-width:1.5}.o{fill:#2d1b0e;stroke:#db6d28;stroke-width:1.5}
-    .l{stroke:#8b949e;stroke-width:1.5;fill:none;marker-end:url(#a)}
-  </style>
-  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8b949e"/></marker></defs>
-  <rect width="960" height="668" rx="10" fill="#0d1117"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 740" width="960" height="740" role="img" aria-label="whiletrue architecture: the CLI on top; a core with loader, validator, runtime (scheduler, items, steps, journal), plugin API and state store; built-in plugins for control flow, basics, git, GitHub, tmux and SQLite; agent runners for Claude Code, opencode and Codex; an optional rsi layer; and the outside world of agent CLIs, git, gh and tmux">
+<style>
+text{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace;fill:#c9d1d9}
+.t{font-size:15px;font-weight:700}.d{fill:#8b949e}.s{font-size:12px}.p{fill:#d2a8ff}.hu{fill:#ffa657}
+.b{fill:#161b22;stroke:#30363d;stroke-width:1.5}
+.g{fill:#0f2d1a;stroke:#2ea043;stroke-width:1.5}
+.c{fill:#0c2a4d;stroke:#388bfd;stroke-width:1.5}
+.o{fill:#2d1b0e;stroke:#db6d28;stroke-width:1.5}
+.v{fill:#271a3d;stroke:#8957e5;stroke-width:1.5;stroke-dasharray:6 4}
+.l{stroke:#8b949e;stroke-width:1.5;fill:none;marker-end:url(#a)}
+</style>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8b949e"/></marker></defs>
+<rect width="960" height="740" rx="10" fill="#0d1117"/>
 
-  <rect class="b" x="30" y="24" width="900" height="64" rx="6"/>
-  <text class="t" x="48" y="50">You</text>
-  <text class="d" x="48" y="72">whiletrue.yaml · agents/*.md · whiletrue CLI (run resume approve status panel)</text>
+<rect class="b" x="30" y="20" width="900" height="64" rx="6"/>
+<text class="t" x="48" y="46">You</text>
+<text class="d" x="48" y="68">whiletrue.yaml · agents/*.md · the whiletrue CLI (args, project, commands, one dispatch table)</text>
+<path class="l" d="M480 84V108"/>
 
-  <path class="l" d="M480 88V112"/>
+<rect class="g" x="30" y="110" width="900" height="226" rx="6"/>
+<text class="t" x="48" y="136">whiletrue.core  (knows no git, GitHub, tmux or agent)</text>
+<rect class="b" x="48" y="152" width="200" height="64" rx="5"/>
+<text x="62" y="178">Loader + validator</text><text class="d s" x="62" y="198">config, wiring, rules</text>
+<rect class="b" x="264" y="152" width="400" height="64" rx="5"/>
+<text x="278" y="178">Runtime</text><text class="d s" x="278" y="198">scheduler → items → steps → journal</text>
+<rect class="b" x="680" y="152" width="232" height="64" rx="5"/>
+<text x="694" y="178">Park / resume / replay</text><text class="d s" x="694" y="198">gates, crash recovery</text>
+<rect class="b" x="48" y="232" width="420" height="64" rx="5"/>
+<text x="62" y="258">Plugin API + registry</text><text class="d s" x="62" y="278">modules · strategies · providers · runners</text>
+<rect class="b" x="484" y="232" width="428" height="64" rx="5"/>
+<text x="498" y="258">State store interface</text><text class="d s" x="498" y="278">steps · parks · effects · comments · cost</text>
+<text class="d s" x="48" y="322">Only the CLI sees every package. Layering and no cycles are checked by tests.</text>
+<path class="l" d="M480 336V360"/>
 
-  <rect class="g" x="30" y="114" width="900" height="206" rx="6"/>
-  <text class="t" x="48" y="140">whiletrue.core  (knows no git, GitHub, tmux or agent)</text>
-  <rect class="b" x="48" y="156" width="196" height="64" rx="5"/>
-  <text x="62" y="182">Loader + validator</text><text class="d" x="62" y="202">config, wiring, limits</text>
-  <rect class="b" x="260" y="156" width="196" height="64" rx="5"/>
-  <text x="274" y="182">Scheduler</text><text class="d" x="274" y="202">items, parallel, deps</text>
-  <rect class="b" x="472" y="156" width="196" height="64" rx="5"/>
-  <text x="486" y="182">Pipeline runtime</text><text class="d" x="486" y="202">strategies, journal</text>
-  <rect class="b" x="684" y="156" width="228" height="64" rx="5"/>
-  <text x="698" y="182">Park / resume / replay</text><text class="d" x="698" y="202">gates, crash recovery</text>
-  <rect class="b" x="48" y="236" width="420" height="64" rx="5"/>
-  <text x="62" y="262">Plugin API + registry</text><text class="d" x="62" y="282">action modules · strategies · providers · runners</text>
-  <rect class="b" x="484" y="236" width="428" height="64" rx="5"/>
-  <text x="498" y="262">State store (SQLite, .whiletrue/)</text><text class="d" x="498" y="282">steps · parks · effects · comments · cost</text>
+<rect class="c" x="30" y="362" width="900" height="232" rx="6"/>
+<text class="t" x="48" y="388">Built-in plugins  (public plugin API only)</text>
+<rect class="b" x="48" y="404" width="136" height="60" rx="5"/><text x="60" y="428">control</text><text class="d s" x="60" y="448">loop, retry</text>
+<rect class="b" x="196" y="404" width="136" height="60" rx="5"/><text x="208" y="428">basics</text><text class="d s" x="208" y="448">agent shell gates</text>
+<rect class="b" x="344" y="404" width="136" height="60" rx="5"/><text x="356" y="428">git</text><text class="d s" x="356" y="448">worktrees</text>
+<rect class="b" x="492" y="404" width="136" height="60" rx="5"/><text x="504" y="428">github</text><text class="d s" x="504" y="448">issues, PRs</text>
+<rect class="b" x="640" y="404" width="136" height="60" rx="5"/><text x="652" y="428">tmux</text><text class="d s" x="652" y="448">panes, panel</text>
+<rect class="b" x="788" y="404" width="124" height="60" rx="5"/><text x="800" y="428">store_sqlite</text><text class="d s" x="800" y="448">state.db</text>
 
-  <path class="l" d="M480 320V346"/>
+<rect class="b" x="48" y="480" width="864" height="44" rx="5"/>
+<text x="60" y="500">Agent runners</text><text class="d s" x="170" y="500">claude_code (headless, tmux)  ·  opencode  ·  codex</text>
+<text class="d s" x="60" y="516">all three read a process through basics/stream.py</text>
 
-  <rect class="c" x="30" y="348" width="900" height="190" rx="6"/>
-  <text class="t" x="48" y="374">Built-in plugins  (public plugin API only)</text>
-  <rect class="b" x="48" y="388" width="140" height="64" rx="5"/><text x="60" y="414">control</text><text class="d" x="60" y="434">loop map switch</text>
-  <rect class="b" x="200" y="388" width="140" height="64" rx="5"/><text x="212" y="414">basics</text><text class="d" x="212" y="434">agent shell</text>
-  <rect class="b" x="352" y="388" width="140" height="64" rx="5"/><text x="364" y="414">git</text><text class="d" x="364" y="434">worktrees</text>
-  <rect class="b" x="504" y="388" width="140" height="64" rx="5"/><text x="516" y="414">github</text><text class="d" x="516" y="434">issues, PRs</text>
-  <rect class="b" x="656" y="388" width="130" height="64" rx="5"/><text x="668" y="414">claude_code</text><text class="d" x="668" y="434">headless tmux</text>
-  <rect class="b" x="798" y="388" width="114" height="64" rx="5"/><text x="810" y="414">opencode</text><text class="d" x="810" y="434">codex</text>
-  <rect x="48" y="462" width="864" height="64" rx="5" fill="#271a3d" stroke="#8957e5" stroke-width="1.5" stroke-dasharray="6 4"/>
-  <text class="t" x="60" y="486" style="fill:#d2a8ff">rsi (optional, off by default) · Harness²</text>
-  <text class="d" x="60" y="508">rsi.harness2: rollouts, improver sessions, blind selection, library, human adoption</text>
-  
-  <path class="l" d="M480 538V564"/>
+<rect class="v" x="48" y="536" width="864" height="48" rx="5"/>
+<text class="t p" x="60" y="556" style="font-size:14px">rsi (optional, off by default) · Harness²</text>
+<text class="d s" x="60" y="575">rollouts, improver sessions, blind selection, experience library, human adoption</text>
+<path class="l" d="M480 594V612"/>
 
-  <rect class="o" x="30" y="566" width="900" height="74" rx="6"/>
-  <text class="t" x="48" y="592">Outside world</text>
-  <text class="d" x="48" y="614">claude · opencode · codex CLIs   |   git   |   gh (GitHub)   |   tmux   |   your tests and scripts</text>
+<rect class="o" x="30" y="614" width="900" height="104" rx="6"/>
+<text class="t" x="48" y="640">Outside world</text>
+<text class="d" x="48" y="664">claude · opencode · codex CLIs   |   git   |   gh (GitHub)   |   tmux   |   your tests and scripts</text>
+<text class="d s" x="48" y="690">State lives in .whiletrue/ (SQLite and logs). Nothing is hosted.</text>
 </svg>
