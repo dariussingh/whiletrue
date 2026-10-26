@@ -117,6 +117,8 @@ class HeadlessRunner:
                     msg = _parse_line(line)
                     if msg is None:
                         continue
+                    if ctx.on_raw is not None:
+                        ctx.on_raw(msg)
                     if msg.get("type") == "result":
                         final = _to_result(msg)
                         _emit(ctx, {"kind": "result", "subtype": msg.get("subtype")})

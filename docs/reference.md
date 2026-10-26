@@ -168,6 +168,17 @@ Built-in recipes use `uses: "recipe:<name>"`:
 - **`on_idle: watch`** keeps the run alive and polls; **`exit`** (default) ends the run `parked` (exit code 2) for `resume`.
 - **Resume** replays every recorded step except those that parked (`needs_human`), runs the rest for real, and keeps the same lineage. Gates, loops and expressions re-run against the recorded results.
 
+## Recursive self-improvement
+
+Optional, off by default. The top-level `rsi:` key (`true`, `false` or settings) wraps the steps around the first agent in the `rsi.harness2` strategy and adds `rsi.review`, `rsi.adopt` and `rsi.discard`. Full guide: [rsi.md](rsi.md).
+
+| Module | Kind | What it does |
+| --- | --- | --- |
+| `rsi.harness2` | strategy | Runs its children in isolated workspace copies, improves the harness, selects blind, applies the chosen rollout's file changes |
+| `rsi.review` | strategy | Asks a person (`human.approve`) when the proposed harness changed |
+| `rsi.adopt` | deterministic | Writes the chosen harness into the workspace and stores the lesson |
+| `rsi.discard` | deterministic | Keeps the current harness |
+
 ## Reproducibility
 
 - **`whiletrue lock`** writes `whiletrue.lock`, pinning the version of each plugin in use. Once it exists, `validate`/`plan`/`run` fail if the plugins drift; run `whiletrue lock` again to accept.

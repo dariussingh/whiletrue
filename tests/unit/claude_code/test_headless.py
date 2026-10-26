@@ -129,6 +129,22 @@ echo '%s'"""
     assert "stream-json" in Path(f"{cmd}.args").read_text()
 
 
+async def test_every_raw_message_goes_to_the_raw_tap(tmp_path: Path) -> None:
+    cmd = fake_claude(
+        tmp_path,
+        "raw.sh",
+        """echo '{"type":"system","subtype":"init"}'
+echo 'not json'
+echo '%s'"""
+        % SUCCESS,
+    )
+    raw: list[dict[str, Any]] = []
+    context = ctx()
+    context.on_raw = raw.append
+    assert (await runner(cmd).run(req(tmp_path), context)).ok
+    assert [m["type"] for m in raw] == ["system", "result"]
+
+
 async def test_works_without_an_event_callback(tmp_path: Path) -> None:
     cmd = fake_claude(tmp_path, "quiet.sh", f"echo '{SUCCESS}'")
     assert (await runner(cmd).run(req(tmp_path), ctx())).ok

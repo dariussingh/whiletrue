@@ -98,9 +98,20 @@ async def test_renders_the_prompt_calls_the_runner_and_returns_text(tmp_path: Pa
     assert (req.limits.budget_usd, req.limits.turns, req.limits.wall_ms) == (1, 5, 60_000)
     assert req.session_id is not None
     assert re.fullmatch(r"[0-9a-f-]{36}", req.session_id)
-    assert [e.type for e in events] == ["agent.event", "agent.event"]
+    assert [e.type for e in events] == ["agent.event"] * 3
     assert events[0].data == {"node": "node", "kind": "runner", "runner": "claude-code-headless"}
     assert events[1].data == {"node": "node", "kind": "tool", "name": "Read"}
+    assert events[2].data == {"node": "node", "kind": "agent.cost", "usd": 0.3}
+
+
+async def test_a_scope_tap_sees_every_agent_event_and_the_cost(tmp_path: Path) -> None:
+    runner = FakeRunner({"cost_usd": 0.5})
+    _, ctx, _ = setup(tmp_path, runner, agent(tmp_path, "tap", ""))
+    tapped: list[dict[str, Any]] = []
+    ctx.scope.set("agent_tap", tapped.append)
+    await agent_module.run({"in": "x"}, ctx)
+    assert [e["kind"] for e in tapped] == ["runner", "tool", "agent.cost"]
+    assert tapped[-1]["usd"] == 0.5
 
 
 async def test_omits_optional_request_fields_when_not_configured(tmp_path: Path) -> None:
@@ -399,3 +410,20 @@ async def test_max_agents_caps_live_sessions(tmp_path: Path) -> None:
     ctx = dataclasses.replace(ctx, agent_slots=asyncio.Semaphore(2))
     await asyncio.gather(*(agent_module.run({"in": "x"}, ctx) for _ in range(5)))
     assert live["max"] == 2
+
+
+async def test_the_scope_raw_tap_is_handed_to_the_runner(tmp_path: Path) -> None:
+    seen: list[Any] = []
+
+    class Recording(FakeRunner):
+        async def run(self, request: AgentRequest, ctx: RunContext) -> AgentResult:
+            seen.append(ctx.on_raw)
+            return await super().run(request, ctx)
+
+    _, ctx, _ = setup(tmp_path, Recording(), agent(tmp_path, "raw", ""))
+    await agent_module.run({"in": "x"}, ctx)
+    tap = seen[0]
+    assert tap is None
+    ctx.scope.set("agent_raw_tap", print)
+    await agent_module.run({"in": "x"}, ctx)
+    assert seen[1] is print

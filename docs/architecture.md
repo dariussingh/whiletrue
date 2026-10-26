@@ -419,7 +419,7 @@ The pipeline exercises every core feature: the item graph, parallel worktrees, r
 
 ## Recursive harness improvement (RSI)
 
-**Status: planned (M5), off by default.** Source method: Harness² (Xu et al., Google Research, 2026, [arXiv:2610.14224](https://arxiv.org/abs/2610.14224), [code](https://github.com/google-research/harness2), Apache-2.0). The method code is ported into this repo as `whiletrue.rsi.harness2` (Apache-2.0 headers kept; see [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)). Other RSI methods can sit beside it as `whiletrue.rsi.<method>`; `rsi.method` selects one (default `harness2`).
+**Status: built (M5), off by default.** User guide: [rsi.md](rsi.md). Source method: Harness² (Xu et al., Google Research, 2026, [arXiv:2610.14224](https://arxiv.org/abs/2610.14224), [code](https://github.com/google-research/harness2), Apache-2.0). The method code is ported into this repo as `whiletrue.rsi.harness2` (Apache-2.0 headers kept; see [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)). Other RSI methods can sit beside it as `whiletrue.rsi.<method>`; `rsi.method` selects one (default `harness2`).
 
 A pipeline normally runs the same agent harness (the agent file, plus the project's `CLAUDE.md`, skills, subagents, hooks and scripts) for every item. With `rsi: true`, whiletrue improves that harness while the backlog runs, keeping model weights fixed. It works at two levels.
 
@@ -502,7 +502,7 @@ One Python distribution, `whiletrue`, published to PyPI. Each row below is a sub
 | `whiletrue.tmux` | TUI: session, panes, control panel | core |
 | `whiletrue.cli` | The `whiletrue` command; loads plugins listed in `whiletrue.yaml` | all of the above as defaults |
 | `whiletrue.recipes` | Shareable composites: `ralph`, `review-pass`, `issue-loop` | control, basics |
-| `whiletrue.rsi` (planned, M5) | Optional recursive harness improvement. `whiletrue.rsi.harness2` is the Harness² method (component tree, surfaces, ledger, library, selection, evidence, prompts, `rsi.harness2` strategy, adoption gate); other methods can be added beside it | core, git |
+| `whiletrue.rsi` | Optional recursive harness improvement. `whiletrue.rsi.harness2` is the Harness² method (component tree, surfaces, ledger, library, selection, evidence, prompts, `rsi.harness2` strategy, adoption gate); other methods can be added beside it | core, git |
 
 ### CLI surface (v0.1)
 

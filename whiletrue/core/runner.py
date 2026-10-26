@@ -89,6 +89,9 @@ class RunContext:
     signal: AbortSignal
     #: Raw runner events (tool calls, messages) for the event log.
     on_event: Callable[[dict[str, Any]], None] | None = None
+    #: Every raw message the runner reads, in full. Not logged: for consumers that need the whole
+    #: trajectory (`rsi`). Runners that cannot provide it never call it.
+    on_raw: Callable[[dict[str, Any]], None] | None = None
 
 
 class Runner(Protocol):

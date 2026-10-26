@@ -238,9 +238,9 @@ whiletrue --help        # installed editable into .devenv/state/venv
 
 Live tests against real agent CLIs are opt-in: `WHILETRUE_LIVE=1 uv run pytest tests/live -v`.
 
-## Roadmap
+## Recursive self-improvement
 
-Next is **recursive self-improvement** (`rsi`, off by default): an optional mode in which whiletrue improves its own agents' harness (prompts, skills, subagents, hooks) item by item, using the Propose, Probe, Compose method from Harness². The plan is in [docs/plan.md](docs/plan.md#m5--recursive-harness-improvement-rsi) and the design in [docs/architecture.md](docs/architecture.md#recursive-harness-improvement-rsi). It is not built yet; the step-by-step plan is [docs/rsi-plan.md](docs/rsi-plan.md). Gemini CLI support follows as its own milestone.
+Optional and off by default: `rsi: true` lets whiletrue improve the harness around your agent (prompts, skills, subagents) item by item with the Propose, Probe, Compose method from Harness², using isolated rollouts, blind selection and a per-domain experience library. A person approves what is adopted. It multiplies agent spend (about 7 times at `k: 1`) and is capped by `budget_usd`. See [docs/rsi.md](docs/rsi.md). Next: Gemini CLI support.
 
 ## Acknowledgements and citation
 

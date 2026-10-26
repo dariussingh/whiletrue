@@ -120,30 +120,30 @@ _Provenance and design_
 
 _Setting and surface_
 
-81. [ ] `rsi` configuration: top level and per agent (`rsi: true | false | { method: harness2, k, mode, domain, adopt, evidence, budget_usd, scope, when }`), default `false`; `--rsi/--no-rsi` on `run`. `validate` rules: needs a budget, limits on improver and selector agents, `workspace: git-worktree`, an adoption policy, and no side-effect modules inside the scope; `rsi: false` leaves every existing config valid and unchanged. `plan` prints the RSI stages and the worst-case cost multiplier.
-82. [~] Editable surface (`SurfaceSpec`) for Claude Code mapping the components (system prompt, guardrails, memory, tool guidance, subagents, skills, scripts) to files in the worktree; Codex surface ported from Harness². _(Both are in `surfaces.py` with tree read, validate, write and diff. OpenCode is not ported: upstream materialises a custom layout that whiletrue has no step for. The "always-approve" flag is `SurfaceSpec.restricted`.)_ Read, validate, write and diff a tree; hooks, scripts, permission rules and MCP flagged as always-approve. (OQ-16)
+81. [x] `rsi` configuration: top level and per agent (`rsi: true | false | { method: harness2, k, mode, domain, adopt, evidence, budget_usd, scope, when }`), default `false`; `--rsi/--no-rsi` on `run`. `validate` rules: needs a budget, limits on improver and selector agents, `workspace: git-worktree`, an adoption policy, and no side-effect modules inside the scope; `rsi: false` leaves every existing config valid and unchanged. `plan` prints the RSI stages and the worst-case cost multiplier. _(Top level and the `rsi.harness2` node; a per-agent `rsi:` header is not built.)_
+82. [x] Editable surface (`SurfaceSpec`) for Claude Code mapping the components (system prompt, guardrails, memory, tool guidance, subagents, skills, scripts) to files in the worktree; Codex surface ported from Harness². _(Both are in `surfaces.py` with tree read, validate, write and diff. OpenCode is not ported: upstream materialises a custom layout that whiletrue has no step for. The "always-approve" flag is `SurfaceSpec.restricted`.)_ Read, validate, write and diff a tree; hooks, scripts, permission rules and MCP flagged as always-approve. (OQ-16) _(Claude Code and Codex surfaces in `surfaces.py`; OpenCode is not ported.)_
 
 _Task-level recursion_
 
-83. [ ] Rollout adapter: run a pipeline scope under a candidate harness in an isolated git worktree; extract trajectory and deliverable from the run record; reuse a finished rollout through the completion marker and harness fingerprint.
-84. [ ] Improver, composer and selector as ordinary whiletrue agent steps (limits, any backend) and the evidence-tree builder; answer-free tripwires (no gate verdicts unless `rsi.evidence: gates`). (OQ-12)
-85. [ ] `rsi.harness2` strategy: k reference rollouts, general and domain proposals, probes, compositions, final rollouts. Parallel mode uses the scheduler's semaphores; sequential mode carries harness and evidence forward. Journaled and resumable.
-86. [ ] Blind selection: anonymized finals, selector failure falls back to the base output, optional `selection: gate-first`.
-87. [ ] Budget ledger: R = 4k and P = 3k checked at run time, spend per stage in `cost`, hard `rsi.budget_usd` that parks the item with a reason; `when:` guard. (OQ-15)
+83. [x] Rollout adapter: run a pipeline scope under a candidate harness in an isolated git worktree; extract trajectory and deliverable from the run record; reuse a finished rollout through the completion marker and harness fingerprint. _(Rollouts are workspace copies run through the scope's redirected `cwd`; finished ones are reused via `runmark`.)_
+84. [x] Improver, composer and selector as ordinary whiletrue agent steps (limits, any backend) and the evidence-tree builder; answer-free tripwires (no gate verdicts unless `rsi.evidence: gates`). (OQ-12) _(Blind evidence with the verdict tripwire; `evidence: gates` is not built.)_
+85. [x] `rsi.harness2` strategy: k reference rollouts, general and domain proposals, probes, compositions, final rollouts. Parallel mode uses the scheduler's semaphores; sequential mode carries harness and evidence forward. Journaled and resumable. _(Parallel and sequential, journaled on disk and resumable.)_
+86. [x] Blind selection: anonymized finals, selector failure falls back to the base output, optional `selection: gate-first`. _(Blind selection with a base fallback; `selection: gate-first` is not built.)_
+87. [x] Budget ledger: R = 4k and P = 3k checked at run time, spend per stage in `cost`, hard `rsi.budget_usd` that parks the item with a reason; `when:` guard. (OQ-15) _(Identity checked and logged, hard `budget_usd`, `when:` guard. `cost` shows spend by step, not yet split by rsi stage.)_
 
 _Harnessing-level recursion and humans_
 
-88. [ ] Per-domain experience library under `.whiletrue/rsi/` (adopted harness plus lessons), read before each item and appended after; domain from `rsi.domain`. (OQ-13)
-89. [ ] Experience reflector as an agent step proposing evidence-supported lessons into `history` and `learnings` (approval before any lesson reaches an agent).
-90. [ ] Adoption: `rsi.adopt: approve | auto | never`; the adopted harness is a diff at a `human.approve` gate (`what: harness`), committed on approval, discarded on `rejected`. Hooks and scripts always need approval. (OQ-14)
+88. [x] Per-domain experience library under `.whiletrue/rsi/` (adopted harness plus lessons), read before each item and appended after; domain from `rsi.domain`. (OQ-13) _(Per-domain library under `.whiletrue/rsi/library`; same-domain items that run at once may not see each other.)_
+89. [~] Experience reflector as an agent step proposing evidence-supported lessons into `history` and `learnings` (approval before any lesson reaches an agent). _(The reflector feeds the experience library, which improvers read; it does not write to `history`/`learnings`.)_
+90. [x] Adoption: `rsi.adopt: approve | auto | never`; the adopted harness is a diff at a `human.approve` gate (`what: harness`), committed on approval, discarded on `rejected`. Hooks and scripts always need approval. (OQ-14) _(`approve | auto | never`; executable paths always need a person.)_
 
 _CLI, tests, evaluation, docs_
 
-91. [ ] CLI `whiletrue rsi status | diff | library | adopt | reset`; control panel shows the RSI stage; `logs` and `cost` split by stage.
-92. [ ] Tests: deterministic fake improver and executor; the upstream demo scenario as an integration test; regression test that `rsi: false` produces identical runs; coverage floor held.
+91. [~] CLI `whiletrue rsi status | diff | library | adopt | reset`; control panel shows the RSI stage; `logs` and `cost` split by stage. _(`rsi status|diff|library|adopt|reset` exist; the panel stage and the `logs`/`cost` split by stage do not.)_
+92. [~] Tests: deterministic fake improver and executor; the upstream demo scenario as an integration test; regression test that `rsi: false` produces identical runs; coverage floor held. _(Fake-runner unit tests, a fake headless `claude` integration suite and the `rsi: false` regression exist; the upstream demo scenario was not ported.)_
 93. [ ] Opt-in live test (`WHILETRUE_LIVE=1`): real Claude Code, k=1, one small item; record cost and wall time.
 94. [ ] Evaluation on a small coding backlog: gate pass rate, retries and cost with `rsi` on versus off, and against the `history.distill` baseline. Publish honest numbers, including a negative result. (OQ-17)
-95. [ ] Docs: `docs/rsi.md` user guide, tutorial section, reference, architecture, README feature, CHANGELOG; `docs:check` green.
+95. [x] Docs: `docs/rsi.md` user guide, tutorial section, reference, architecture, README feature, CHANGELOG; `docs:check` green. _(`docs/rsi.md`, reference, CLI, architecture, README and CHANGELOG. A tutorial section is not written.)_
 96. [ ] **M5 exit:** with `rsi: true`, a 6-item backlog improves its agent harness item by item and a person reviews every adopted change; with `rsi: false`, behavior is unchanged.
 97. [ ] Release `v0.2.0` (version bump, CHANGELOG, tag, PyPI). _(Owner step: pushing a tag publishes.)_
 

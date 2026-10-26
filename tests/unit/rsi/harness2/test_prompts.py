@@ -56,12 +56,10 @@ def test_surface_texts_and_runner_mapping() -> None:
     assert surface_for_runner("claude-code-headless") is CC and surface_for_runner("codex") is CX
     assert surface_for_runner("opencode") is None
     assert CC.is_restricted(".claude/scripts/x.py") and not CC.is_restricted("CLAUDE.md")
-    bogus = P.SurfaceSpec  # a spec nobody wrote text for
     from dataclasses import replace
 
     with pytest.raises(ValueError, match="no surface text"):
         P.surface_text(replace(CC, name="other"))
-    assert bogus is not None
 
 
 def test_mode_note() -> None:

@@ -681,3 +681,42 @@ async def test_a_cancelled_item_in_the_store_stops_before_its_next_step() -> Non
     second = next(s for s in store.list_steps(run.id) if s.node_path.endswith(".1"))
     assert second.error == "cancelled"
     assert live["order"].count("start:a") == 1  # the second nap never ran
+
+
+async def test_a_scope_can_redirect_its_steps_to_another_directory(tmp_path: Any) -> None:
+    seen: list[str] = []
+
+    async def where_run(_i: PortValues, ctx: StepContext[EmptyConfig]) -> Emit:
+        seen.append(ctx.cwd)
+        return Emit("ok")
+
+    async def redirect_run(
+        children: list[PipelineNode], input: PortValues, ctx: CompositeContext[EmptyConfig]
+    ) -> Emit:
+        scope = ctx.scope.child()
+        scope.set("cwd", str(tmp_path))
+        return await ctx.run(children[0], input, scope)
+
+    registry = make_registry()
+    registry.register_action(
+        define_action(
+            ActionModule(
+                id="where",
+                config=EmptyConfig,
+                ports=Ports(),
+                effects="deterministic",
+                cacheable=False,
+                run=where_run,
+            )
+        )
+    )
+    registry.register_strategy(
+        define_strategy(Strategy(id="redirect", config=EmptyConfig, run=redirect_run))
+    )
+    result, _ = await run(
+        "pipeline:\n  - where: {}\n  - redirect:\n      do:\n        - where: {}\n",
+        registry,
+        cwd="/work",
+    )
+    assert result.status == "done"
+    assert seen == ["/work", str(tmp_path)]

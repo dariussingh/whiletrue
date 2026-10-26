@@ -7,6 +7,7 @@
 | [tutorial.md](tutorial.md)             | Tutorial: install, first loop, then build your own gates, review, parallel and human steps |
 | [authoring.md](authoring.md)           | Authoring guide: pipelines, composites, agents, choosing a backend                |
 | [cli.md](cli.md)                       | CLI reference: every command, option, exit code and environment variable          |
+| [rsi.md](rsi.md)                       | Recursive self-improvement: turn it on, what it costs, adoption, limits           |
 | [reference.md](reference.md)           | User reference: modules, control flow, expressions, composites, recipes, replay   |
 | [plugins.md](plugins.md)               | Extending whiletrue: modules, strategies, runners, caps, entry points              |
 | [developing.md](developing.md)         | Contributing: setup, layout, run flow, workflow                                    |

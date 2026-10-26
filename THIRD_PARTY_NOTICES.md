@@ -4,6 +4,8 @@ whiletrue is MIT licensed (see [LICENSE](LICENSE)). Third-party code under `thir
 
 ## Harness²
 
+The `rsi` feature builds on **Harness²: Recursive Agent Harnessing for an Open World** (Xu et al., Google Research, 2026; [arXiv:2610.14224](https://arxiv.org/abs/2610.14224), [code](https://github.com/google-research/harness2), Apache-2.0). If you use `rsi` in research, please cite the paper (BibTeX below). whiletrue is an independent project, not affiliated with Google or the Harness² authors.
+
 The optional recursive self-improvement feature (`rsi`) is built on the method and code of Harness² by Google Research. The method code is ported and refactored into this repository as `whiletrue.rsi.harness2`; users install no extra dependency.
 
 - Source: https://github.com/google-research/harness2 (pinned commit `1cfe254e8d25b15f37048c3730134686abe60335`)

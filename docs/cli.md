@@ -42,6 +42,11 @@
 | `whiletrue comment <item> "text"` | Leave a comment the pipeline must answer at its next wake |
 | `whiletrue history <item>` | The item's timeline: parks, decisions (who, when, note), comments, replies, steers |
 | `whiletrue learnings [list \| approve <id> \| reject <id>]` | Review the lessons `history.distill` proposed; only approved ones reach agents |
+| `whiletrue rsi status` | Every item's recursive self-improvement proposal: state, chosen candidate, spend |
+| `whiletrue rsi diff <item>` | The harness change an item proposed |
+| `whiletrue rsi library` | The experience library, by domain |
+| `whiletrue rsi adopt <item> [--yes]` | Write a proposed harness into the project and store its lesson; `--yes` is required when it changes executable files |
+| `whiletrue rsi reset <item>` | Forget an item's rollouts and proposal |
 
 ## Watching
 

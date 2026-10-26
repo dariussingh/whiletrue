@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -193,14 +194,22 @@ async def _run(input: PortValues, ctx: StepContext[AgentConfig]) -> Emit:
             {"node": ctx.node_id, **event},
             item_id=ctx.item_id,
         )
+        #: A scope may tap every event of the agents under it (`rsi` records trajectories).
+        tap = ctx.scope.get("agent_tap")
+        if callable(tap):
+            tap(event)
 
+    raw_tap: Callable[[dict[str, Any]], None] | None = ctx.scope.get("agent_raw_tap")
+    run_context = RunContext(
+        signal=signal, on_event=on_event, on_raw=raw_tap if callable(raw_tap) else None
+    )
     on_event({"kind": "runner", "runner": runner_id})
     try:
         if ctx.agent_slots is not None:
             async with ctx.agent_slots:
-                result = await runner.run(request, RunContext(signal=signal, on_event=on_event))
+                result = await runner.run(request, run_context)
         else:
-            result = await runner.run(request, RunContext(signal=signal, on_event=on_event))
+            result = await runner.run(request, run_context)
     finally:
         if wall is not None:
             wall.dispose()
@@ -210,6 +219,7 @@ async def _run(input: PortValues, ctx: StepContext[AgentConfig]) -> Emit:
         sessions[shared] = result.session_id or existing or new_session
     if result.cost_usd:
         ctx.record_cost(result.cost_usd)
+        on_event({"kind": "agent.cost", "usd": result.cost_usd})
     if result.steered_cost_usd is not None:
         on_event(
             {

@@ -182,6 +182,8 @@ async def run_pipeline(
     async def run_item(item: RunItem) -> None:
         item_scope = Scope()
         item_scope.set("run", {"id": run_id})
+        #: The project directory (steps may run in a workspace under it).
+        item_scope.set("project_dir", cwd)
         #: Agent session ids shared across this item's steps (`session: item` or a name).
         item_scope.set("sessions", {})
         raw_payload: Any = item.payload
@@ -279,7 +281,8 @@ async def run_pipeline(
                     "item_id": item_id,
                     "node_id": node.id,
                     "attempt": attempt,
-                    "cwd": cwd_cell[0],
+                    #: A scope may redirect its steps to another directory (`rsi` rollouts).
+                    "cwd": str(scope.get("cwd") or cwd_cell[0]),
                     "scope": scope,
                     "registry": registry,
                     "bus": bus,

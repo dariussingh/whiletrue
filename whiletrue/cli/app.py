@@ -11,9 +11,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from whiletrue.abort import AbortSignal
-from whiletrue.cli import gates, ops
+from whiletrue.cli import gates, ops, rsi_cmd
 from whiletrue.cli.common import EXIT, Io
-from whiletrue.cli.registry import RegistryOptions, create_default_registry, load_plugins
+from whiletrue.cli.registry import (
+    RegistryOptions,
+    create_default_registry,
+    load_plugins,
+    whiletrue_version,
+)
 from whiletrue.cli.templates import RALPH_AGENT, RALPH_PIPELINE
 from whiletrue.core import (
     LOCK_FILE,
@@ -35,6 +40,7 @@ from whiletrue.core import (
     validate_pipeline,
     write_lock,
 )
+from whiletrue.rsi import SettingError, apply_rsi, rsi_plugin
 from whiletrue.store_sqlite import SqliteStore
 from whiletrue.tmux import TmuxController, session_name
 
@@ -62,10 +68,12 @@ Commands:
   cost [run]        Spend by item, step and runner
   history <item>    The item's timeline: parks, decisions, comments, replies, steers
   learnings [approve|reject <id>]   Review lessons proposed by history.distill
+  rsi <status|diff|library|adopt|reset>   What recursive self-improvement proposed
 
 Options:
   -f, --file <path> Pipeline file (default: whiletrue.yaml)
   --force           init: overwrite existing files
+  --yes             rsi adopt: confirm a harness that changes executable files
   -m, --note <text> approve/reject: the reason
   --step <id>       approve/reject: which gate, when an item waits at several
   -h, --help        Show this help
@@ -98,6 +106,11 @@ def _load(io: Io, file: str, *, check_pins: bool = True) -> _Loaded | int:
         io.err(f"{error}\n")
         return EXIT.failed
     cwd = str(path.parent)
+    try:
+        config = _with_rsi(registry, config)
+    except SettingError as error:
+        io.err(f"{path}: {error}\n")
+        return EXIT.failed
     if not check_pins:
         return _Loaded(config, registry, cwd)
     try:
@@ -111,6 +124,15 @@ def _load(io: Io, file: str, *, check_pins: bool = True) -> _Loaded | int:
             io.err("".join(f"{p}\n" for p in problems) + "Run `whiletrue lock` to update it.\n")
             return EXIT.failed
     return _Loaded(config, registry, cwd)
+
+
+def _with_rsi(registry: Registry, config: PipelineConfig) -> PipelineConfig:
+    """Apply the `rsi:` setting. With it off (or absent) nothing is registered or changed."""
+    if config.extra.get("rsi") in (None, False):
+        return config
+    if "whiletrue.rsi" not in registry.plugins():
+        registry.use(rsi_plugin, whiletrue_version())
+    return apply_rsi(config, registry)
 
 
 def _validated(io: Io, loaded: _Loaded) -> bool:
@@ -387,6 +409,7 @@ class _Args:
     step: str | None = None
     from_step: str | None = None
     follow: bool = False
+    yes: bool = False
 
 
 def _parse_args(argv: list[str]) -> _Args:
@@ -425,6 +448,8 @@ def _parse_args(argv: list[str]) -> _Args:
                 args.note = value
         elif arg == "--force":
             args.force = True
+        elif arg == "--yes":
+            args.yes = True
         elif arg in ("-h", "--help"):
             args.help = True
         elif arg.startswith("-") and arg != "-":
@@ -519,6 +544,10 @@ async def main(argv: list[str], io: Io) -> int:
         case "learnings":
             return gates.learnings(
                 io, rest[0] if rest else None, rest[1] if len(rest) > 1 else None
+            )
+        case "rsi":
+            return rsi_cmd.run(
+                io, rest[0] if rest else None, rest[1] if len(rest) > 1 else None, yes=args.yes
             )
         case "lock":
             return _lock(io, args.file)
