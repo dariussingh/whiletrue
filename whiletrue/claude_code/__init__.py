@@ -14,13 +14,6 @@ from whiletrue.claude_code.interactive import (
     build_interactive_args,
     create_interactive_runner,
 )
-from whiletrue.claude_code.panes import (
-    Pane,
-    PaneHost,
-    ProcessPaneHost,
-    StreamMirror,
-    TmuxPaneHost,
-)
 from whiletrue.core import PluginApi, SimplePlugin
 
 
@@ -43,12 +36,7 @@ __all__ = [
     "HeadlessRunner",
     "InteractiveOptions",
     "InteractiveRunner",
-    "Pane",
-    "PaneHost",
-    "ProcessPaneHost",
     "SessionHandler",
-    "StreamMirror",
-    "TmuxPaneHost",
     "ToolResult",
     "build_headless_args",
     "build_interactive_args",

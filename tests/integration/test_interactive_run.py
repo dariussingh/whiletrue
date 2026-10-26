@@ -14,9 +14,9 @@ from pathlib import Path
 
 import pytest
 
-from whiletrue.claude_code import ProcessPaneHost
 from whiletrue.cli import EXIT, Io, main
 from whiletrue.store_sqlite import SqliteStore
+from whiletrue.tmux import ProcessPaneHost
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "fake_interactive_claude.py"
 

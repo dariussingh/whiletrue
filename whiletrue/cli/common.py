@@ -4,9 +4,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from whiletrue.abort import AbortSignal
-from whiletrue.claude_code import PaneHost
 from whiletrue.github import GitHubClient
-from whiletrue.tmux import TmuxController
+from whiletrue.tmux import PaneHost, TmuxController
 
 
 @dataclass

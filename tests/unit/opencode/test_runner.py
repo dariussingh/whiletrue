@@ -7,15 +7,15 @@ from typing import Any
 import pytest
 
 from whiletrue.abort import AbortSignal
-from whiletrue.claude_code import ProcessPaneHost
+from whiletrue.basics.json_extract import extract_json
 from whiletrue.core import AgentLimits, AgentRequest, Registry, RunContext
 from whiletrue.opencode import (
     OpencodeOptions,
     OpencodeRunner,
     build_opencode_args,
-    extract_json,
     opencode_plugin,
 )
+from whiletrue.tmux import ProcessPaneHost
 
 
 def event(kind: str, **part: Any) -> str:

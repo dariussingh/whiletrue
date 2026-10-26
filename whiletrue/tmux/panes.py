@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Literal, Protocol
 
 from whiletrue.basics.process import kill_process_group
-from whiletrue.tmux import PaneRef, TmuxController
+from whiletrue.tmux.controller import PaneRef, TmuxController
 
 PaneState = Literal["running", "dead", "gone"]
 

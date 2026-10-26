@@ -14,8 +14,6 @@ from whiletrue.basics import basics_plugin
 from whiletrue.claude_code import (
     HeadlessOptions,
     InteractiveOptions,
-    PaneHost,
-    TmuxPaneHost,
     claude_code_plugin,
 )
 from whiletrue.codex import CodexOptions, codex_plugin
@@ -24,7 +22,7 @@ from whiletrue.core import Plugin, Registry
 from whiletrue.git import git_plugin
 from whiletrue.github import FileBackedGitHub, GitHubClient, github_plugin
 from whiletrue.opencode import OpencodeOptions, opencode_plugin
-from whiletrue.tmux import TmuxController, session_name
+from whiletrue.tmux import PaneHost, TmuxController, TmuxPaneHost, session_name
 
 #: Third-party plugins advertise themselves under this entry-point group.
 PLUGIN_ENTRY_POINT_GROUP = "whiletrue.plugins"

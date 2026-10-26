@@ -15,10 +15,10 @@ from typing import Any
 
 from whiletrue.claude_code.endpoint import EventEndpoint
 from whiletrue.claude_code.learnings import LearningsStore
-from whiletrue.claude_code.panes import Pane, PaneHost, ProcessPaneHost
 from whiletrue.claude_code.session import ParkReason, SessionOutcome, SessionSpec, StepSession
 from whiletrue.claude_code.transcript import Price
 from whiletrue.core import AgentRequest, AgentResult, RunContext, RunnerCapabilities
+from whiletrue.tmux import Pane, PaneHost, ProcessPaneHost
 
 #: The bundled Claude Code plugin (hooks); `--plugin-dir` points here.
 PLUGIN_DIR = Path(__file__).resolve().parent / "plugin"

@@ -1,8 +1,7 @@
 import asyncio
 from pathlib import Path
 
-from whiletrue.claude_code.panes import ProcessPaneHost, TmuxPaneHost
-from whiletrue.tmux import ExecResult, TmuxController
+from whiletrue.tmux import ExecResult, ProcessPaneHost, TmuxController, TmuxPaneHost
 
 
 class ScriptedTmux:

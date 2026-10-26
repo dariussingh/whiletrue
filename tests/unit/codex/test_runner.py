@@ -7,9 +7,9 @@ from typing import Any
 import pytest
 
 from whiletrue.abort import AbortSignal
-from whiletrue.claude_code import ProcessPaneHost
 from whiletrue.codex import CodexOptions, CodexRunner, build_codex_args, codex_plugin
 from whiletrue.core import AgentLimits, AgentRequest, Registry, RunContext
+from whiletrue.tmux import ProcessPaneHost
 
 
 def line(**event: Any) -> str:

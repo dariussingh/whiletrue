@@ -7,10 +7,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
+from whiletrue.basics.json_extract import extract_json
 from whiletrue.basics.process import kill_process_group
-from whiletrue.claude_code.panes import PaneHost, StreamMirror
 from whiletrue.core import AgentRequest, AgentResult, RunContext, RunnerCapabilities
-from whiletrue.opencode.runner import extract_json
+from whiletrue.tmux import PaneHost, StreamMirror
 
 _LINE_LIMIT = 64 * 1024 * 1024
 

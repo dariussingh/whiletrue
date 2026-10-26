@@ -34,3 +34,77 @@ def test_builtin_packages_do_not_reach_into_each_others_internals() -> None:
     for path in (SRC / "control").rglob("*.py"):
         for module in imported_modules(path):
             assert not module.startswith(("whiletrue.basics", "whiletrue.cli")), module
+
+
+#: Which sibling packages each package may import. Everything else is a layering violation.
+#: Read it as a dependency graph: `core` at the bottom, the CLI at the top, nothing circular.
+ALLOWED: dict[str, set[str]] = {
+    "abort": set(),
+    "core": {"abort"},
+    "control": {"core"},
+    "basics": {"abort", "core"},
+    "store_sqlite": {"core"},
+    "tmux": {"basics", "core"},
+    "git": {"basics", "core"},
+    "github": {"basics", "core"},
+    "claude_code": {"basics", "core", "tmux"},
+    "opencode": {"basics", "core", "tmux"},
+    "codex": {"basics", "core", "tmux"},
+    "rsi": {"abort", "control", "core"},
+    "recipes": set(),  # data only (YAML files)
+    "cli": {
+        "abort", "basics", "claude_code", "codex", "control", "core", "git", "github",
+        "opencode", "rsi", "store_sqlite", "tmux",
+    },
+}  # fmt: skip
+
+
+def package_edges() -> dict[str, set[str]]:
+    edges: dict[str, set[str]] = {}
+    for path in SRC.rglob("*.py"):
+        parts = path.relative_to(SRC).with_suffix("").parts
+        if parts[0] in {"__init__", "__main__"}:
+            continue
+        mine = parts[0]
+        for module in imported_modules(path):
+            pieces = module.split(".")
+            if pieces[0] == "whiletrue" and len(pieces) > 1 and pieces[1] != mine:
+                edges.setdefault(mine, set()).add(pieces[1])
+    return edges
+
+
+def test_every_package_is_listed_and_only_imports_what_it_may() -> None:
+    edges = package_edges()
+    on_disk = {p.name for p in SRC.iterdir() if p.is_dir() and p.name != "__pycache__"}
+    on_disk |= {"abort"}
+    assert on_disk <= set(ALLOWED), f"add the new package to ALLOWED: {on_disk - set(ALLOWED)}"
+    violations = {
+        f"{pkg} -> {dep}"
+        for pkg, deps in edges.items()
+        for dep in deps
+        if dep not in ALLOWED.get(pkg, set())
+    }
+    assert violations == set()
+
+
+def test_the_package_graph_has_no_cycles() -> None:
+    edges = package_edges()
+    state: dict[str, int] = {}
+
+    def visit(node: str, trail: list[str]) -> None:
+        state[node] = 1
+        for dep in sorted(edges.get(node, ())):
+            assert state.get(dep) != 1, f"import cycle: {' -> '.join([*trail, node, dep])}"
+            if dep not in state:
+                visit(dep, [*trail, node])
+        state[node] = 2
+
+    for package in sorted(edges):
+        if package not in state:
+            visit(package, [])
+
+
+def test_runners_do_not_depend_on_each_other() -> None:
+    runners = {"claude_code", "opencode", "codex"}
+    for runner in runners:
+        assert not (package_edges().get(runner, set()) & (runners - {runner})), runner

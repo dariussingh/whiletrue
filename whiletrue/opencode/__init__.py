@@ -5,7 +5,6 @@ from whiletrue.opencode.runner import (
     OpencodeOptions,
     OpencodeRunner,
     build_opencode_args,
-    extract_json,
 )
 
 
@@ -20,6 +19,5 @@ __all__ = [
     "OpencodeOptions",
     "OpencodeRunner",
     "build_opencode_args",
-    "extract_json",
     "opencode_plugin",
 ]

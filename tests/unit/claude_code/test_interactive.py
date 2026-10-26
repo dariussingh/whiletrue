@@ -14,8 +14,8 @@ from whiletrue.claude_code.interactive import (
     InteractiveRunner,
     build_interactive_args,
 )
-from whiletrue.claude_code.panes import ProcessPaneHost
 from whiletrue.core import AgentLimits, AgentRequest, RunContext, create_builtin_caps
+from whiletrue.tmux import ProcessPaneHost
 
 FAKE_SOURCE = (
     Path(__file__).resolve().parents[2] / "fixtures" / "fake_interactive_claude.py"

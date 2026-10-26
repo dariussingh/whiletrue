@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 from dataclasses import dataclass, field
 from typing import Any, cast
 
+from whiletrue.basics.json_extract import extract_json
 from whiletrue.basics.process import kill_process_group
-from whiletrue.claude_code.panes import PaneHost, StreamMirror
 from whiletrue.core import AgentRequest, AgentResult, RunContext, RunnerCapabilities
+from whiletrue.tmux import PaneHost, StreamMirror
 
 _LINE_LIMIT = 64 * 1024 * 1024
 
@@ -41,25 +41,6 @@ def build_opencode_args(req: AgentRequest, extra_args: list[str] | None = None) 
     if req.output_schema:
         prompt += _JSON_INSTRUCTION.format(schema=json.dumps(req.output_schema))
     return [*args, *(extra_args or []), "--", prompt]
-
-
-def extract_json(text: str) -> Any:
-    """The last JSON object or array in a model's reply (raw, or inside a code fence)."""
-    candidates = re.findall(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
-    candidates.append(text)
-    for chunk in reversed(candidates):
-        decoder = json.JSONDecoder()
-        found: Any = None
-        for start in (m.start() for m in re.finditer(r"[{\[]", chunk)):
-            try:
-                value, _ = decoder.raw_decode(chunk[start:])
-            except ValueError:
-                continue
-            found = value
-            break
-        if found is not None:
-            return found
-    return None
 
 
 class OpencodeRunner:
