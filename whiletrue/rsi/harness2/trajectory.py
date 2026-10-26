@@ -48,6 +48,29 @@ def _blocks(message: Mapping[str, Any]) -> list[dict[str, Any]]:
     return [cast("dict[str, Any]", b) for b in cast("list[Any]", content) if isinstance(b, dict)]
 
 
+def _assistant_lines(message: Mapping[str, Any], step: int) -> tuple[list[str], int]:
+    lines: list[str] = []
+    for block in _blocks(message):
+        if block.get("type") == "text" and str(block.get("text", "")).strip():
+            step += 1
+            lines.append(f"## {step}. Agent\n{str(block['text']).strip()}\n")
+        elif block.get("type") == "tool_use":
+            step += 1
+            args = json.dumps(block.get("input", {}), default=str, ensure_ascii=False)
+            lines.append(f"## {step}. Tool call: {block.get('name', '?')}\n{args}\n")
+    return lines, step
+
+
+def _observation_lines(message: Mapping[str, Any], obs_limit: int) -> list[str]:
+    lines: list[str] = []
+    for block in _blocks(message):
+        if block.get("type") == "tool_result":
+            body = _clip(_text(block.get("content")), obs_limit)
+            error = " (error)" if block.get("is_error") else ""
+            lines.append(f"### Observation{error}\n{body}\n")
+    return lines
+
+
 def render(
     messages: Iterable[Mapping[str, Any]], *, final: str = "", obs_limit: int = OBS_LIMIT
 ) -> str:
@@ -60,20 +83,10 @@ def render(
         if kind == "system" and message.get("subtype") == "init":
             lines.append(f"# Session started (model {message.get('model', 'unknown')})\n")
         elif kind == "assistant":
-            for block in _blocks(message):
-                if block.get("type") == "text" and str(block.get("text", "")).strip():
-                    step += 1
-                    lines.append(f"## {step}. Agent\n{str(block['text']).strip()}\n")
-                elif block.get("type") == "tool_use":
-                    step += 1
-                    args = json.dumps(block.get("input", {}), default=str, ensure_ascii=False)
-                    lines.append(f"## {step}. Tool call: {block.get('name', '?')}\n{args}\n")
+            added, step = _assistant_lines(message, step)
+            lines += added
         elif kind == "user":
-            for block in _blocks(message):
-                if block.get("type") == "tool_result":
-                    body = _clip(_text(block.get("content")), obs_limit)
-                    error = " (error)" if block.get("is_error") else ""
-                    lines.append(f"### Observation{error}\n{body}\n")
+            lines += _observation_lines(message, obs_limit)
         elif kind == "result":
             result = str(message.get("result") or "")
     answer = result or final

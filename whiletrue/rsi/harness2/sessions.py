@@ -8,10 +8,6 @@ stages instead of paying for them again.
 
 from __future__ import annotations
 
-import hashlib
-import json
-import re
-import shutil
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,19 +16,10 @@ from typing import Any, cast
 from whiletrue.abort import AbortSignal
 from whiletrue.core import AgentLimits, AgentRequest, RunContext, parse_duration
 from whiletrue.rsi.harness2 import context
-from whiletrue.rsi.harness2 import prompts as P
 from whiletrue.rsi.harness2 import tree as harness_tree
 from whiletrue.rsi.harness2.config import SessionSpec
 from whiletrue.rsi.harness2.env import Env
-from whiletrue.rsi.harness2.library import Experience
-from whiletrue.rsi.harness2.selection import (
-    Selection,
-    anon_id,
-    assign_ids,
-    is_base,
-    parse_block,
-    parse_choice,
-)
+from whiletrue.rsi.harness2.stagecache import digest, load_cached, store_cached
 from whiletrue.rsi.harness2.tree import Tree, TreeError
 
 #: A proposal that fails validation gets this many tries before it inherits the current harness.
@@ -117,33 +104,6 @@ async def run_session(
     return SessionOutcome(True, result.text, cost)
 
 
-def _digest(root: Path, extra: str) -> str:
-    """A digest of every file the session could read, plus its prompt."""
-    h = hashlib.sha256(extra.encode())
-    for path in sorted(root.rglob("*")):
-        if path.is_file():
-            h.update(path.relative_to(root).as_posix().encode())
-            h.update(path.read_bytes())
-    return h.hexdigest()
-
-
-def _load(workdir: Path, key: str) -> dict[str, Any] | None:
-    try:
-        data: Any = json.loads((workdir / "result.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    if not isinstance(data, dict):
-        return None
-    saved = cast("dict[str, Any]", data)
-    return saved if saved.get("key") == key else None
-
-
-def _store(workdir: Path, key: str, **fields: Any) -> None:
-    (workdir / "result.json").write_text(
-        json.dumps({"key": key, **fields}, default=str, sort_keys=True), encoding="utf-8"
-    )
-
-
 async def edit_stage(
     env: Env,
     *,
@@ -173,8 +133,8 @@ async def edit_stage(
     )
     mission = context.mission(built, job=job)
     (workdir / "MISSION.md").write_text(mission, encoding="utf-8")
-    key = _digest(workdir / "context", mission)
-    hit = _load(workdir, key)
+    key = digest(workdir / "context", mission)
+    hit = load_cached(workdir, key)
     if hit is not None:
         saved = cast("dict[Any, Any]", hit["tree"])
         return EditResult(
@@ -212,7 +172,7 @@ async def edit_stage(
         break
     if result.error:
         env.log(f"{label} inherits the current harness", {"reason": result.error})
-    _store(
+    store_cached(
         workdir,
         key,
         tree=result.tree,
@@ -221,189 +181,3 @@ async def edit_stage(
         error=result.error,
     )
     return result
-
-
-def _write_candidates(root: Path, candidates: Mapping[str, str], id_map: Mapping[str, str]) -> None:
-    folder = root / "context" / "candidates"
-    folder.mkdir(parents=True, exist_ok=True)
-    for anon, label in id_map.items():
-        (folder / f"{anon}.md").write_text(candidates[label], encoding="utf-8")
-
-
-async def select_stage(env: Env, finals: Mapping[str, str], bases: Mapping[str, str]) -> Selection:
-    """Pick one final output, blind. A selector failure falls back to a delivered base."""
-    selection = Selection(
-        item_id=env.item_id, mode=env.cfg.mode, k=env.cfg.k, n_candidates=len(finals)
-    )
-    if not finals:
-        selection.error = "no final produced a deliverable"
-        return _fallback(selection, bases)
-    if len(finals) == 1:
-        label = next(iter(finals))
-        selection.chosen_id, selection.chosen_label = "A", label
-        selection.id_map, selection.ok, selection.trivial = {"A": label}, True, True
-        return selection
-    selection.id_map = assign_ids(list(finals), item_id=env.item_id, k=env.cfg.k, mode=env.cfg.mode)
-    workdir = env.dir / "stages" / "select"
-    shutil.rmtree(workdir / "context", ignore_errors=True)
-    (workdir / "context").mkdir(parents=True)
-    (workdir / "context" / "task.md").write_text(env.task, encoding="utf-8")
-    _write_candidates(workdir, finals, selection.id_map)
-    prompt = P.select(env.profile, len(finals))
-    key = _digest(workdir / "context", prompt)
-    cached = _load(workdir, key)
-    if cached is not None:
-        reply, cost = str(cached["reply"]), 0.0
-    else:
-        env.check_budget()
-        spec = env.cfg.selector_spec()
-        read_only = spec.model_copy(update={"tools": ["Read", "Glob", "Grep"]})
-        outcome = await run_session(env, read_only, prompt=prompt, cwd=workdir, label="select")
-        reply, cost = outcome.text, outcome.cost
-        if not outcome.ok:
-            selection.error = f"selector failed: {outcome.error}"
-            selection.usd = cost
-            return _fallback(selection, bases)
-        _store(workdir, key, reply=reply)
-    selection.usd = cost
-    choice = parse_choice(reply, list(selection.id_map))
-    if choice is None:
-        selection.error = "selector gave no valid choice"
-        return _fallback(selection, bases)
-    selection.chosen_id, selection.chosen_label = choice, selection.id_map[choice]
-    selection.why = parse_block(reply, "why")
-    selection.ok = True
-    return selection
-
-
-def _fallback(selection: Selection, bases: Mapping[str, str]) -> Selection:
-    """Deliver a base output when selection cannot pick; never raise."""
-    selection.fallback = True
-    delivered = sorted(label for label in bases if is_base(label))
-    if delivered:
-        selection.chosen_label = delivered[0]
-        selection.chosen_is_base = True
-        selection.chosen_id = anon_id(0)
-    return selection
-
-
-def _field_values(block: str) -> dict[str, str]:
-    """`field: value` lines of an `<experience>` block; a value may run over several lines."""
-    values: dict[str, list[str]] = {}
-    current = ""
-    for line in block.splitlines():
-        match = re.match(rf"^\s*({'|'.join(_FIELDS)})\s*:\s*(.*)$", line)
-        if match:
-            current = match.group(1)
-            values[current] = [match.group(2)]
-        elif current:
-            values[current].append(line)
-    return {
-        name: " ".join(part.strip() for part in lines if part.strip())
-        for name, lines in values.items()
-    }
-
-
-def parse_experience(reply: str) -> Experience:
-    """The `<experience>` block of a reflection. `NO_ENTRY` or a missing block is incomplete."""
-    block = parse_block(reply, "experience")
-    if not block or "NO_ENTRY" in reply.replace(block, ""):
-        return Experience(edits=parse_block(reply, "edits"))
-    values = _field_values(block)
-    return Experience(
-        cue=values.get("cue", ""),
-        lesson=values.get("lesson", ""),
-        evidence=values.get("evidence", ""),
-        confidence=values.get("confidence", ""),
-        edits=parse_block(reply, "edits"),
-    )
-
-
-async def reflect_stage(
-    env: Env,
-    *,
-    base: Tree,
-    bases: Sequence[context.RolloutView],
-    pool: Sequence[context.PoolEntry],
-    chosen_label: str,
-    why: str,
-) -> Experience:
-    """Write what each edit did and at most one transferable lesson for the library."""
-    workdir = env.dir / "stages" / "reflect"
-    built = context.build(
-        workdir / "context",
-        env.surface,
-        item_id=env.item_id,
-        task=env.task,
-        rollouts=bases,
-        harness=base,
-        library_dir=None,
-        pool=pool,
-        decisions={"selection": f"The submitted candidate was `{chosen_label}`.\n\n{why}".strip()},
-    )
-    mission = context.mission(built, job=P.experience(env.profile))
-    (workdir / "MISSION.md").write_text(mission, encoding="utf-8")
-    key = _digest(workdir / "context", mission)
-    cached = _load(workdir, key)
-    if cached is not None:
-        return parse_experience(str(cached["reply"]))
-    env.check_budget()
-    spec = env.cfg.reflector_spec().model_copy(update={"tools": ["Read", "Glob", "Grep"]})
-    outcome = await run_session(env, spec, prompt=mission, cwd=workdir, label="reflect")
-    if not outcome.ok:
-        env.log("reflection failed", {"error": outcome.error})
-        return Experience()
-    _store(workdir, key, reply=outcome.text)
-    return parse_experience(outcome.text)
-
-
-@dataclass
-class ReviewResult:
-    approved: bool
-    why: str = ""
-    error: str = ""
-
-
-async def review_stage(
-    env: Env,
-    *,
-    base: Tree,
-    bases: Sequence[context.RolloutView],
-    chosen: context.PoolEntry,
-    why: str,
-    edits: str,
-) -> ReviewResult:
-    """A model decides whether the proposed harness should be adopted.
-
-    It fails closed: a failed session, or any answer that is not exactly `approve`, rejects.
-    """
-    workdir = env.dir / "stages" / "review"
-    notes = f"Chosen candidate: `{chosen.label}`.\n\nWhy it was chosen:\n{why or '(trivial pick)'}"
-    if edits.strip():
-        notes += f"\n\nWhat each edit did (from the reflection):\n{edits.strip()}"
-    built = context.build(
-        workdir / "context",
-        env.surface,
-        item_id=env.item_id,
-        task=env.task,
-        rollouts=bases,
-        harness=base,
-        pool=[chosen],
-        decisions={"selection": notes},
-    )
-    mission = context.mission(built, job=P.review(env.profile))
-    (workdir / "MISSION.md").write_text(mission, encoding="utf-8")
-    key = _digest(workdir / "context", mission)
-    cached = _load(workdir, key)
-    if cached is not None:
-        reply = str(cached["reply"])
-    else:
-        env.check_budget()
-        spec = env.cfg.reviewer_spec().model_copy(update={"tools": ["Read", "Glob", "Grep"]})
-        outcome = await run_session(env, spec, prompt=mission, cwd=workdir, label="review")
-        if not outcome.ok:
-            return ReviewResult(False, error=f"reviewer failed: {outcome.error}")
-        reply = outcome.text
-        _store(workdir, key, reply=reply)
-    decision = parse_block(reply, "decision").strip().lower()
-    return ReviewResult(decision == "approve", parse_block(reply, "why"))

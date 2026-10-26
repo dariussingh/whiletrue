@@ -1,16 +1,11 @@
 from __future__ import annotations
 
-import asyncio
-import contextlib
 import json
 from dataclasses import dataclass, field
 from typing import Any, cast
 
-from whiletrue.basics.process import kill_process_group
+from whiletrue.basics.stream import run_stream
 from whiletrue.core import AgentRequest, AgentResult, RunContext, RunnerCapabilities
-
-#: Stream-json lines can be large (tool results); lift asyncio's 64 KiB default.
-_LINE_LIMIT = 64 * 1024 * 1024
 
 
 @dataclass
@@ -88,82 +83,59 @@ class HeadlessRunner:
         command = self._options.command
         if ctx.signal.aborted:
             return AgentResult(ok=False, text="", error="aborted")
+        stream = _Stream(ctx)
         try:
-            proc = await asyncio.create_subprocess_exec(
+            outcome = await run_stream(
                 command,
-                *build_headless_args(request, self._options.extra_args),
+                build_headless_args(request, self._options.extra_args),
                 cwd=request.cwd,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                start_new_session=True,
-                limit=_LINE_LIMIT,
+                on_line=stream.feed,
+                signal=ctx.signal,
+                stdin=request.prompt,
+                wall_ms=request.limits.wall_ms if request.limits is not None else None,
             )
         except OSError as error:
             return AgentResult(ok=False, text="", error=f"Failed to start {command}: {error}")
-
-        async def drive() -> AgentResult:
-            assert proc.stdin is not None
-            assert proc.stdout is not None
-            assert proc.stderr is not None
-            stderr_task = asyncio.ensure_future(proc.stderr.read())
-            try:
-                with contextlib.suppress(BrokenPipeError, ConnectionResetError):
-                    proc.stdin.write(request.prompt.encode())
-                    await proc.stdin.drain()
-                    proc.stdin.close()
-                final: AgentResult | None = None
-                while line := await proc.stdout.readline():
-                    msg = _parse_line(line)
-                    if msg is None:
-                        continue
-                    if ctx.on_raw is not None:
-                        ctx.on_raw(msg)
-                    if msg.get("type") == "result":
-                        final = _to_result(msg)
-                        _emit(ctx, {"kind": "result", "subtype": msg.get("subtype")})
-                    elif msg.get("type") == "assistant":
-                        message: dict[str, Any] = msg.get("message") or {}
-                        blocks: list[dict[str, Any]] = message.get("content") or []
-                        for block in blocks:
-                            if block.get("type") == "tool_use":
-                                _emit(ctx, {"kind": "tool_use", "name": block.get("name") or ""})
-                            elif block.get("type") == "text":
-                                _emit(ctx, {"kind": "text"})
-                code = await proc.wait()
-                if final is not None:
-                    return final
-                stderr = (await stderr_task).decode(errors="replace").strip()
-                detail = f": {stderr[-500:]}" if stderr else ""
-                return AgentResult(
-                    ok=False,
-                    text="",
-                    error=f"{command} exited with code {code} without a result{detail}",
-                )
-            finally:
-                stderr_task.cancel()
-
-        drive_task = asyncio.ensure_future(drive())
-        abort_task = asyncio.ensure_future(ctx.signal.wait())
-        wall_ms = request.limits.wall_ms if request.limits is not None else None
-        try:
-            done, _ = await asyncio.wait(
-                {drive_task, abort_task},
-                timeout=None if wall_ms is None else wall_ms / 1000,
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            if drive_task in done:
-                return drive_task.result()
-            # Kill the whole process group so grandchildren cannot keep our pipes open.
-            kill_process_group(proc.pid)
-            drive_task.cancel()
-            await asyncio.gather(drive_task, return_exceptions=True)
-            await proc.wait()
-            if abort_task in done:
-                return AgentResult(ok=False, text="", error="aborted")
+        if outcome.stopped == "aborted":
+            return AgentResult(ok=False, text="", error="aborted")
+        if outcome.stopped == "wall":
             return AgentResult(ok=False, text="", error="wall-time limit exceeded")
-        finally:
-            abort_task.cancel()
+        if stream.final is not None:
+            return stream.final
+        detail = f": {outcome.stderr[-500:]}" if outcome.stderr else ""
+        return AgentResult(
+            ok=False,
+            text="",
+            error=f"{command} exited with code {outcome.code} without a result{detail}",
+        )
+
+
+class _Stream:
+    """Reads Claude Code's stream-json lines: forwards events and keeps the final result."""
+
+    def __init__(self, ctx: RunContext) -> None:
+        self._ctx = ctx
+        self.final: AgentResult | None = None
+
+    def feed(self, line: bytes) -> None:
+        msg = _parse_line(line)
+        if msg is None:
+            return
+        ctx = self._ctx
+        if ctx.on_raw is not None:
+            ctx.on_raw(msg)
+        kind = msg.get("type")
+        if kind == "result":
+            self.final = _to_result(msg)
+            _emit(ctx, {"kind": "result", "subtype": msg.get("subtype")})
+        elif kind == "assistant":
+            message: dict[str, Any] = msg.get("message") or {}
+            blocks: list[dict[str, Any]] = message.get("content") or []
+            for block in blocks:
+                if block.get("type") == "tool_use":
+                    _emit(ctx, {"kind": "tool_use", "name": block.get("name") or ""})
+                elif block.get("type") == "text":
+                    _emit(ctx, {"kind": "text"})
 
 
 def _parse_line(line: bytes) -> dict[str, Any] | None:

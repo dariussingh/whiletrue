@@ -12,24 +12,24 @@ from tests.unit.rsi.harness2.conftest import (
 )
 from whiletrue.core import RunItem
 from whiletrue.rsi.harness2 import proposal as proposals
-from whiletrue.rsi.harness2 import sessions
+from whiletrue.rsi.harness2 import reflection
 from whiletrue.rsi.harness2.library import Experience
 
 
 def test_experience_blocks_are_parsed_field_by_field() -> None:
-    exp = sessions.parse_experience(EXPERIENCE)
+    exp = reflection.parse_experience(EXPERIENCE)
     assert (exp.cue, exp.confidence) == ("a config file changes", "medium")
     assert exp.lesson == "CLAUDE.md should warn about config files" and exp.complete
     assert "component: CLAUDE.md" in exp.edits
     wrapped = "<experience>cue: when X\nlesson: do Y\n  and then Z\nevidence: e</experience>"
-    assert sessions.parse_experience(wrapped).lesson == "do Y and then Z"
+    assert reflection.parse_experience(wrapped).lesson == "do Y and then Z"
     declined = "<edits>row</edits>\nNO_ENTRY"
     assert (
-        not sessions.parse_experience(declined).complete
-        and sessions.parse_experience(declined).edits == "row"
+        not reflection.parse_experience(declined).complete
+        and reflection.parse_experience(declined).edits == "row"
     )
-    assert not sessions.parse_experience("nothing here").complete
-    assert not sessions.parse_experience("<experience>cue: only</experience>").complete
+    assert not reflection.parse_experience("nothing here").complete
+    assert not reflection.parse_experience("<experience>cue: only</experience>").complete
 
 
 async def test_a_selector_chooses_among_several_finals_blind(tmp_path: Path) -> None:

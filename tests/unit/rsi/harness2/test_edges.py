@@ -16,7 +16,7 @@ from whiletrue.core import RunItem, parse_pipeline, validate_pipeline
 from whiletrue.rsi import SettingError, apply_rsi
 from whiletrue.rsi.harness2 import library as lib
 from whiletrue.rsi.harness2 import proposal as proposals
-from whiletrue.rsi.harness2 import rollout, sessions
+from whiletrue.rsi.harness2 import rollout, stagecache
 from whiletrue.rsi.harness2 import tree as t
 from whiletrue.rsi.harness2.ledger import BudgetError, Ledger
 from whiletrue.rsi.harness2.surfaces import CLAUDE_CODE_SURFACE as CC
@@ -166,10 +166,10 @@ def test_rollout_helpers_cope_with_odd_values_and_broken_files(tmp_path: Path) -
 
 def test_session_cache_ignores_foreign_files(tmp_path: Path) -> None:
     (tmp_path / "result.json").write_text("[1, 2]")
-    assert sessions._load(tmp_path, "k") is None
+    assert stagecache.load_cached(tmp_path, "k") is None
     (tmp_path / "result.json").write_text('{"key": "other"}')
-    assert sessions._load(tmp_path, "k") is None
-    assert sessions._load(tmp_path / "nowhere", "k") is None
+    assert stagecache.load_cached(tmp_path, "k") is None
+    assert stagecache.load_cached(tmp_path / "nowhere", "k") is None
 
 
 def test_surface_stubs_and_subagent_modes() -> None:

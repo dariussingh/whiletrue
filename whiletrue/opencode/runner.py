@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-import asyncio
 import json
 from dataclasses import dataclass, field
 from typing import Any, cast
 
 from whiletrue.basics.json_extract import extract_json
-from whiletrue.basics.process import kill_process_group
+from whiletrue.basics.stream import run_stream
 from whiletrue.core import AgentRequest, AgentResult, RunContext, RunnerCapabilities
 from whiletrue.tmux import PaneHost, StreamMirror
-
-_LINE_LIMIT = 64 * 1024 * 1024
 
 
 @dataclass
@@ -71,97 +68,82 @@ class OpencodeRunner:
     async def _run(
         self, request: AgentRequest, ctx: RunContext, mirror: StreamMirror
     ) -> AgentResult:
-        opts = self._options
+        command = self._options.command
+        stream = _Stream(ctx, mirror)
         try:
-            proc = await asyncio.create_subprocess_exec(
-                opts.command,
-                *build_opencode_args(request, opts.extra_args),
+            outcome = await run_stream(
+                command,
+                build_opencode_args(request, self._options.extra_args),
                 cwd=request.cwd,
-                stdin=asyncio.subprocess.DEVNULL,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                start_new_session=True,
-                limit=_LINE_LIMIT,
+                on_line=stream.feed,
+                signal=ctx.signal,
+                wall_ms=request.limits.wall_ms if request.limits is not None else None,
             )
         except OSError as error:
-            return AgentResult(ok=False, text="", error=f"Failed to start {opts.command}: {error}")
-
-        texts: list[str] = []
-        state: dict[str, Any] = {"cost": 0.0, "session": None, "turns": 0, "error": None}
-
-        def emit(event: dict[str, Any]) -> None:
-            if ctx.on_event is not None:
-                ctx.on_event(event)
-
-        note = mirror.note
-
-        async def drive() -> None:
-            assert proc.stdout is not None
-            while raw := await proc.stdout.readline():
-                try:
-                    event = json.loads(raw)
-                except ValueError:
-                    continue
-                if not isinstance(event, dict):
-                    continue
-                fields = cast(dict[str, Any], event)
-                part = cast(dict[str, Any], fields.get("part") or {})
-                state["session"] = fields.get("sessionID") or state["session"]
-                kind = fields.get("type")
-                if kind == "text":
-                    text = str(part.get("text", ""))
-                    texts.append(text)
-                    note(text)
-                    emit({"kind": "text"})
-                elif kind == "step_finish":
-                    state["turns"] += 1
-                    state["cost"] += float(part.get("cost") or 0)
-                elif kind in ("tool_use", "tool"):
-                    name = str(part.get("tool") or part.get("name") or "")
-                    note(f"[tool] {name}")
-                    emit({"kind": "tool_use", "name": name})
-                elif kind == "error":
-                    state["error"] = json.dumps(fields.get("error", fields))[:400]
-                    note(f"[error] {state['error']}")
-
-        drive_task = asyncio.ensure_future(drive())
-        stderr_task = asyncio.ensure_future(proc.stderr.read() if proc.stderr else asyncio.sleep(0))
-        abort_task = asyncio.ensure_future(ctx.signal.wait())
-        wall_ms = request.limits.wall_ms if request.limits is not None else None
-        try:
-            done, _ = await asyncio.wait(
-                {drive_task, abort_task},
-                timeout=None if wall_ms is None else wall_ms / 1000,
-                return_when=asyncio.FIRST_COMPLETED,
+            return AgentResult(ok=False, text="", error=f"Failed to start {command}: {error}")
+        if outcome.stopped is not None:
+            return AgentResult(
+                ok=False,
+                text="".join(stream.texts),
+                error="aborted" if outcome.stopped == "aborted" else "wall-time limit exceeded",
             )
-            if drive_task not in done:
-                kill_process_group(proc.pid)
-                drive_task.cancel()
-                await asyncio.gather(drive_task, return_exceptions=True)
-                await proc.wait()
-                return AgentResult(
-                    ok=False,
-                    text="".join(texts),
-                    error="aborted" if abort_task in done else "wall-time limit exceeded",
-                )
-            code = await proc.wait()
-            stderr = (await stderr_task or b"").decode(errors="replace").strip()  # type: ignore[union-attr]
-        finally:
-            abort_task.cancel()
-            stderr_task.cancel()
-        text = "".join(texts).strip()
+        text = "".join(stream.texts).strip()
         common: dict[str, Any] = {
             "text": text,
-            "session_id": state["session"],
-            "cost_usd": state["cost"],
-            "turns": state["turns"],
+            "session_id": stream.session,
+            "cost_usd": stream.cost,
+            "turns": stream.turns,
         }
-        if code != 0 or state["error"]:
-            detail = state["error"] or stderr[-400:]
+        if outcome.code != 0 or stream.error:
+            detail = stream.error or outcome.stderr[-400:]
             return AgentResult(
-                ok=False, error=f"{opts.command} exited with code {code}: {detail}", **common
+                ok=False, error=f"{command} exited with code {outcome.code}: {detail}", **common
             )
         output = extract_json(text) if request.output_schema else None
         if request.output_schema and output is None:
             return AgentResult(ok=False, error="the reply contained no JSON value", **common)
         return AgentResult(ok=True, output=output, **common)
+
+
+class _Stream:
+    """Reads `opencode run --format json` lines: shows them, forwards events, keeps totals."""
+
+    def __init__(self, ctx: RunContext, mirror: StreamMirror) -> None:
+        self._ctx = ctx
+        self._mirror = mirror
+        self.texts: list[str] = []
+        self.cost = 0.0
+        self.session: str | None = None
+        self.turns = 0
+        self.error: str | None = None
+
+    def _emit(self, event: dict[str, Any]) -> None:
+        if self._ctx.on_event is not None:
+            self._ctx.on_event(event)
+
+    def feed(self, raw: bytes) -> None:
+        try:
+            event = json.loads(raw)
+        except ValueError:
+            return
+        if not isinstance(event, dict):
+            return
+        fields = cast(dict[str, Any], event)
+        part = cast(dict[str, Any], fields.get("part") or {})
+        self.session = fields.get("sessionID") or self.session
+        kind = fields.get("type")
+        if kind == "text":
+            text = str(part.get("text", ""))
+            self.texts.append(text)
+            self._mirror.note(text)
+            self._emit({"kind": "text"})
+        elif kind == "step_finish":
+            self.turns += 1
+            self.cost += float(part.get("cost") or 0)
+        elif kind in ("tool_use", "tool"):
+            name = str(part.get("tool") or part.get("name") or "")
+            self._mirror.note(f"[tool] {name}")
+            self._emit({"kind": "tool_use", "name": name})
+        elif kind == "error":
+            self.error = json.dumps(fields.get("error", fields))[:400]
+            self._mirror.note(f"[error] {self.error}")

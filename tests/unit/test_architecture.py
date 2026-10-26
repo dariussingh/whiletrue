@@ -108,3 +108,21 @@ def test_runners_do_not_depend_on_each_other() -> None:
     runners = {"claude_code", "opencode", "codex"}
     for runner in runners:
         assert not (package_edges().get(runner, set()) & (runners - {runner})), runner
+
+
+#: The method layer of `rsi.harness2` (ported from Harness²) knows nothing about whiletrue's
+#: runtime: it imports only the standard library and itself. The runtime layer builds on it.
+METHOD_LAYER = {
+    "tree", "surfaces", "ledger", "library", "runmark", "selection", "context", "prompts",
+    "snapshot", "trajectory", "proposal", "config",
+}  # fmt: skip
+
+
+def test_the_rsi_method_layer_does_not_depend_on_the_runtime() -> None:
+    offenders: list[str] = []
+    for name in sorted(METHOD_LAYER):
+        path = SRC / "rsi" / "harness2" / f"{name}.py"
+        for module in imported_modules(path):
+            if module.startswith("whiletrue.") and not module.startswith("whiletrue.rsi.harness2"):
+                offenders.append(f"{name}: {module}")
+    assert offenders == []

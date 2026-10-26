@@ -11,6 +11,7 @@ from whiletrue.core import (
     CompositeContext,
     ConfigIssue,
     Emit,
+    Expr,
     PipelineNode,
     Strategy,
     ValidateContext,
@@ -78,23 +79,51 @@ def _context(ctx: CompositeContext[Any], input: PortValues, last: Emit | None) -
     return values
 
 
+def _over_items(
+    cfg: LoopConfig, ctx: CompositeContext[Any], input: PortValues
+) -> list[Any] | Emit | None:
+    """The `over` list, None when the loop has none, or a failure when it is not a list."""
+    if cfg.over is None:
+        return None
+    value = parse_expr(cfg.over).eval(_context(ctx, input, None))
+    if not isinstance(value, list):
+        return Emit("fail", {"error": f"`loop.over` must be a list, got {type(value).__name__}"})
+    return list(value)  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+
+
+def _iteration_limit(cfg: LoopConfig, items: list[Any] | None) -> float:
+    limit = math.inf if cfg.max is None or cfg.max == "unbounded" else cfg.max
+    return min(limit, len(items)) if items is not None else limit
+
+
+def _after_iteration(
+    cfg: LoopConfig,
+    until: Expr | None,
+    items: list[Any] | None,
+    *,
+    last: Emit,
+    result: Emit,
+    expr_context: dict[str, Any],
+) -> Emit | None:
+    """What the loop returns now, or None to run another iteration."""
+    if until is not None:
+        return result if until.eval_bool(expr_context) else None
+    if items is not None:
+        return last if last.port != "ok" else None
+    if cfg.stop_when == "ok" and last.port == "ok":
+        return result
+    return None
+
+
 async def _run(
     children: list[PipelineNode], input: PortValues, ctx: CompositeContext[LoopConfig]
 ) -> Emit:
     cfg = ctx.config
     until = parse_expr(cfg.until) if cfg.until else None
-    items: list[Any] | None = None
-    if cfg.over is not None:
-        value = parse_expr(cfg.over).eval(_context(ctx, input, None))
-        if not isinstance(value, list):
-            return Emit(
-                "fail", {"error": f"`loop.over` must be a list, got {type(value).__name__}"}
-            )
-        items = list(value)  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
-    limit = math.inf if cfg.max is None or cfg.max == "unbounded" else cfg.max
-    if items is not None:
-        limit = min(limit, len(items))
-
+    items = _over_items(cfg, ctx, input)
+    if isinstance(items, Emit):
+        return items
+    limit = _iteration_limit(cfg, items)
     last = Emit("ok")
     collected: list[Any] = []
     index = 0
@@ -117,14 +146,11 @@ async def _run(
         if last.port == "ok" and cfg.collect:
             collected.append(last.value)
         result = Emit("ok", collected if cfg.collect else last.value)
-        if until is not None:
-            if until.eval_bool(_context(ctx, input, last)):
-                return result
-        elif items is not None:
-            if last.port != "ok":
-                return last
-        elif cfg.stop_when == "ok" and last.port == "ok":
-            return result
+        done = _after_iteration(
+            cfg, until, items, last=last, result=result, expr_context=_context(ctx, input, last)
+        )
+        if done is not None:
+            return done
     if until is None and (items is not None or cfg.stop_when == "never"):
         return Emit("ok", collected if cfg.collect else last.value)
     return Emit("fail", {"error": f"loop gave up after {limit} iterations", "last": last.value})

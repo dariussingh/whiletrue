@@ -8,10 +8,8 @@ import re
 import shlex
 import sys
 import uuid
-from collections.abc import Coroutine
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 from whiletrue.claude_code.endpoint import EventEndpoint
 from whiletrue.claude_code.learnings import LearningsStore
@@ -106,6 +104,32 @@ def _safe(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", name)[:80]
 
 
+class _PaneTitles:
+    """Retitles a session's pane (`! needs you`) from hooks that cannot await."""
+
+    def __init__(self, label: str) -> None:
+        self._label = label
+        self._pane: Pane | None = None
+        self._tasks: set[asyncio.Task[None]] = set()
+
+    def attach(self, pane: Pane) -> None:
+        self._pane = pane
+
+    def retitle(self, title: str) -> None:
+        task = asyncio.ensure_future(self._set(title))
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    async def _set(self, title: str) -> None:
+        if self._pane is not None:
+            with contextlib.suppress(Exception):
+                await self._pane.set_title(title)
+
+    def cancel(self) -> None:
+        for task in list(self._tasks):
+            task.cancel()
+
+
 class InteractiveRunner:
     """Runs a step as a live, interactive Claude Code session in a pane.
 
@@ -136,7 +160,6 @@ class InteractiveRunner:
     async def run(self, request: AgentRequest, ctx: RunContext) -> AgentResult:
         if ctx.signal.aborted:
             return AgentResult(ok=False, text="", error="aborted")
-        opts = self._options
         endpoint = await self._ensure_endpoint()
         key = request.step_key or str(uuid.uuid4())
         label = request.label or key
@@ -148,31 +171,42 @@ class InteractiveRunner:
         except OSError as error:
             return AgentResult(ok=False, text="", error=f"Cannot prepare the session: {error}")
 
-        pane_holder: list[Pane] = []
+        titles = _PaneTitles(label)
+        session = self._session(request, key, label, ctx, titles)
+        unregister = endpoint.register(key, session)
+        try:
+            env = {**pane_environment(), **endpoint.env_for(key), "WT_PYTHON": self._options.python}
+            try:
+                pane = await self._host.open(title=label, argv=argv, cwd=request.cwd, env=env)
+            except Exception as error:
+                return AgentResult(ok=False, text="", error=f"Failed to start a pane: {error}")
+            titles.attach(pane)
+            outcome = await self._wait(session, pane, request, ctx)
+            await self._wind_down(pane, session, request, label, aborted=outcome is None)
+        finally:
+            unregister()
+            titles.cancel()
+        if outcome is None:
+            return AgentResult(ok=False, text="", error="aborted")
+        return self._result(outcome, request)
+
+    def _session(
+        self, request: AgentRequest, key: str, label: str, ctx: RunContext, titles: _PaneTitles
+    ) -> StepSession:
+        """The session that receives the agent's hooks and MCP calls for this step."""
+        opts = self._options
         loop = asyncio.get_running_loop()
-        background: set[asyncio.Task[None]] = set()
-
-        def spawn(coro: Coroutine[Any, Any, None]) -> None:
-            task = asyncio.ensure_future(coro)
-            background.add(task)
-            task.add_done_callback(background.discard)
-
-        async def retitle(title: str) -> None:
-            if pane_holder:
-                with contextlib.suppress(Exception):
-                    await pane_holder[0].set_title(title)
+        holder: list[StepSession] = []
 
         def emit(event: dict[str, object]) -> None:
             if ctx.on_event is not None:
                 ctx.on_event({str(k): v for k, v in event.items()})
 
-        session_holder: list[StepSession] = []
-
         def on_limit(reason: ParkReason) -> None:
             # The agent normally stops once its tools are denied; if it doesn't, park anyway.
             def force() -> None:
-                if session_holder:
-                    session_holder[0].park(reason, f"limit hit: {reason}")
+                if holder:
+                    holder[0].park(reason, f"limit hit: {reason}")
 
             loop.call_later(opts.limit_grace, force)
 
@@ -191,29 +225,13 @@ class InteractiveRunner:
                 max_nudges=opts.max_nudges,
                 prices=opts.prices,
                 on_event=emit,
-                on_attention=lambda message: spawn(retitle(f"! {label} needs you")),
-                on_attention_cleared=lambda: spawn(retitle(label)),
+                on_attention=lambda message: titles.retitle(f"! {label} needs you"),
+                on_attention_cleared=lambda: titles.retitle(label),
                 on_limit=on_limit,
             )
         )
-        session_holder.append(session)
-        unregister = endpoint.register(key, session)
-        try:
-            env = {**pane_environment(), **endpoint.env_for(key), "WT_PYTHON": opts.python}
-            try:
-                pane = await self._host.open(title=label, argv=argv, cwd=request.cwd, env=env)
-            except Exception as error:
-                return AgentResult(ok=False, text="", error=f"Failed to start a pane: {error}")
-            pane_holder.append(pane)
-            outcome = await self._wait(session, pane, request, ctx)
-            await self._wind_down(pane, session, request, label, aborted=outcome is None)
-        finally:
-            unregister()
-            for task in list(background):
-                task.cancel()
-        if outcome is None:
-            return AgentResult(ok=False, text="", error="aborted")
-        return self._result(outcome, request)
+        holder.append(session)
+        return session
 
     def _prepare(
         self, request: AgentRequest, endpoint: EventEndpoint, key: str, workdir: Path

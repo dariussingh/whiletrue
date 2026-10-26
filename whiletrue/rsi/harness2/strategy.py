@@ -1,58 +1,42 @@
 """The `rsi.harness2` strategy: improve the harness around the steps it wraps.
 
-For one item it runs the wrapped steps in isolated copies of the workspace, lets improver sessions
-edit the harness (the files an agent framework loads), probes the edits by running the steps
-again, composes refined harnesses from the contrasts, and selects one result blind. The chosen
-rollout's file changes are applied to the item's workspace so later steps (gates, commit, PR) run
-on them; the chosen harness is saved as a proposal for a person to adopt.
-
-Two modes spend the same budget (R = 4k rollouts, P = 3k sessions). Parallel: k general and k
-domain candidates from the same evidence, then k independent compositions. Sequential: k rounds,
-each editing the previous checkpoint. Stage order follows Harness² (`core/recursion.py`).
+For one item it runs the stages of a mode (`modes.py`), selects one result blind, applies the
+chosen rollout's file changes to the item's workspace so later steps (gates, commit, PR) run on
+them, reflects on what happened, and saves the chosen harness as a proposal for adoption
+(`adopt.py`). Static checks are in `checks.py`.
 """
 
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, cast
 
 from whiletrue.control.chain import run_chain
 from whiletrue.core import (
     CompositeContext,
-    ConfigIssue,
     Emit,
     PipelineNode,
     Strategy,
-    ValidateContext,
     define_strategy,
-    load_agent_definition,
     parse_expr,
 )
 from whiletrue.core.module import PortValues
 from whiletrue.rsi.harness2 import context
-from whiletrue.rsi.harness2 import prompts as P
 from whiletrue.rsi.harness2 import proposal as proposals
 from whiletrue.rsi.harness2 import snapshot as sn
 from whiletrue.rsi.harness2 import tree as harness_tree
+from whiletrue.rsi.harness2.checks import validate, validate_node
 from whiletrue.rsi.harness2.config import Harness2Config
 from whiletrue.rsi.harness2.env import BudgetStop, Env
+from whiletrue.rsi.harness2.judging import review_stage, select_stage
 from whiletrue.rsi.harness2.ledger import BudgetError, Ledger
 from whiletrue.rsi.harness2.library import Library
-from whiletrue.rsi.harness2.rollout import Rollout, run_rollout
-from whiletrue.rsi.harness2.sessions import (
-    EditResult,
-    edit_stage,
-    reflect_stage,
-    review_stage,
-    select_stage,
-)
-from whiletrue.rsi.harness2.surfaces import SURFACE_FOR_RUNNER, SURFACES
+from whiletrue.rsi.harness2.modes import Outcome, run_parallel, run_sequential
+from whiletrue.rsi.harness2.reflection import reflect_stage
+from whiletrue.rsi.harness2.rollout import Rollout
+from whiletrue.rsi.harness2.surfaces import SURFACES
 from whiletrue.rsi.harness2.tree import Tree
-
-#: Variables a `when:` expression may use.
-WHEN_VARIABLES = frozenset({"item", "iter", "run", "input", "project_dir"})
 
 
 def _task_text(item: object, input: PortValues) -> str:
@@ -91,149 +75,12 @@ def _make_env(ctx: CompositeContext[Harness2Config], input: PortValues) -> Env:
     )
 
 
-def _record(env: Env, rollouts: Sequence[Rollout]) -> None:
-    for rollout in rollouts:
-        env.ledger.rollout(rollout.label, rollout.cost, cached=rollout.cached)
-
-
-def _record_sessions(env: Env, edits: dict[str, EditResult]) -> None:
-    for label, edit in edits.items():
-        env.ledger.session(label, edit.cost, cached=edit.cached, attempts=max(edit.attempts, 1))
-
-
-async def _edits(env: Env, jobs: dict[str, dict[str, object]]) -> dict[str, EditResult]:
-    """Run several propose or compose sessions at once."""
-    labels = list(jobs)
-    results = await asyncio.gather(*(edit_stage(env, label=lb, **jobs[lb]) for lb in labels))  # pyright: ignore[reportArgumentType]
-    out = dict(zip(labels, results, strict=True))
-    _record_sessions(env, out)
-    return out
-
-
-async def _rollouts(
-    env: Env,
-    children: list[PipelineNode],
-    input: PortValues,
-    runs: dict[str, Tree | None],
-) -> dict[str, Rollout]:
-    labels = list(runs)
-    results = await asyncio.gather(
-        *(run_rollout(env, children, input, label=lb, harness=runs[lb]) for lb in labels)
-    )
-    out = dict(zip(labels, results, strict=True))
-    _record(env, list(out.values()))
-    return out
-
-
-class _Outcome:
-    """What a mode hands to the shared finish step."""
-
-    def __init__(
-        self,
-        bases: dict[str, Rollout],
-        finals: dict[str, Rollout],
-        trees: dict[str, Tree],
-        pool: list[context.PoolEntry],
-    ) -> None:
-        self.bases = bases
-        self.finals = finals
-        #: Final label to the harness that produced it.
-        self.trees = trees
-        self.pool = pool
-
-
-async def _parallel(
-    env: Env, children: list[PipelineNode], input: PortValues, base: Tree
-) -> _Outcome:
-    k, profile, surface = env.cfg.k, env.profile, env.surface
-    bases = await _rollouts(env, children, input, {f"base{i}": None for i in range(1, k + 1)})
-    base_views = [r.view for r in bases.values()]
-    jobs: dict[str, dict[str, object]] = {}
-    for i in range(1, k + 1):
-        for dim, prefix in (("INV", "inv"), ("DOM", "dom")):
-            jobs[f"{prefix}{i}"] = {
-                "job": P.propose(profile, dim, surface, k=k, index=i),
-                "harness": base,
-                "rollouts": base_views,
-            }
-    proposed = await _edits(env, jobs)
-    probed = await _rollouts(env, children, input, {lb: e.tree for lb, e in proposed.items()})
-    pool = [context.PoolEntry(lb, proposed[lb].tree, probed[lb].view) for lb in proposed]
-    composed = await _edits(
-        env,
-        {
-            f"agg{i}": {
-                "job": P.aggregate(profile, surface, k=k, index=i),
-                "harness": base,
-                "rollouts": base_views,
-                "pool": pool,
-            }
-            for i in range(1, k + 1)
-        },
-    )
-    finals = await _rollouts(env, children, input, {lb: e.tree for lb, e in composed.items()})
-    all_pool = [
-        *pool,
-        *(context.PoolEntry(lb, composed[lb].tree, finals[lb].view) for lb in composed),
-    ]
-    return _Outcome(bases, finals, {lb: e.tree for lb, e in composed.items()}, all_pool)
-
-
-async def _sequential(
-    env: Env, children: list[PipelineNode], input: PortValues, base: Tree
-) -> _Outcome:
-    k, profile, surface = env.cfg.k, env.profile, env.surface
-    bases = await _rollouts(env, children, input, {f"base{i}": None for i in range(1, k + 1)})
-    evidence = [r.view for r in bases.values()]
-    current = base
-    pool: list[context.PoolEntry] = []
-    finals: dict[str, Rollout] = {}
-    trees: dict[str, Tree] = {}
-    decisions: dict[str, str] = {}
-    for t in range(1, k + 1):
-        proposed = await _edits(
-            env,
-            {
-                f"{prefix}{t}": {
-                    "job": P.propose(profile, dim, surface, k=k, index=1, round_t=t),
-                    "harness": current,
-                    "rollouts": evidence,
-                    "decisions": dict(decisions),
-                }
-                for dim, prefix in (("INV", "inv"), ("DOM", "dom"))
-            },
-        )
-        probed = await _rollouts(env, children, input, {lb: e.tree for lb, e in proposed.items()})
-        pool += [context.PoolEntry(lb, proposed[lb].tree, probed[lb].view) for lb in proposed]
-        label = f"c{t}"
-        composed = (
-            await _edits(
-                env,
-                {
-                    label: {
-                        "job": P.compose_round(profile, surface, t=t, k=k),
-                        "harness": current,
-                        "rollouts": evidence,
-                        "pool": list(pool),
-                        "decisions": dict(decisions),
-                    }
-                },
-            )
-        )[label]
-        final = (await _rollouts(env, children, input, {label: composed.tree}))[label]
-        decisions[label] = composed.notes
-        evidence.append(final.view)
-        pool.append(context.PoolEntry(label, composed.tree, final.view))
-        finals[label], trees[label], current = final, composed.tree, composed.tree
-    return _Outcome(bases, finals, trees, pool)
-
-
 def _apply(env: Env, chosen: Rollout) -> list[str]:
     """Write the chosen rollout's file changes into the item's own workspace."""
     return sn.apply(chosen.changes, env.cwd)
 
 
-async def _finish(env: Env, outcome: _Outcome, base: Tree) -> Emit:
+async def _finish(env: Env, outcome: Outcome, base: Tree) -> Emit:
     """Select, apply the result, reflect, and save the proposal."""
     delivered_finals = {lb: r.view.deliverable for lb, r in outcome.finals.items() if r.delivered}
     delivered_bases = {lb: r.view.deliverable for lb, r in outcome.bases.items() if r.delivered}
@@ -311,7 +158,7 @@ async def _run(
     env = _make_env(ctx, input)
     base = harness_tree.read_tree(env.surface, env.cwd)
     try:
-        mode = _sequential if cfg.mode == "sequential" else _parallel
+        mode = run_sequential if cfg.mode == "sequential" else run_parallel
         outcome = await mode(env, children, input, base)
         return await _finish(env, outcome, base)
     except BudgetStop as stop:
@@ -320,129 +167,14 @@ async def _run(
         return Emit("fail", {"error": f"rsi: {error}"})
 
 
-# ---- static checks -----------------------------------------------------------------------
-
-
-def _walk(node: PipelineNode) -> list[PipelineNode]:
-    return [node, *(n for child in node.children for n in _walk(child))]
-
-
-def _surface_for(node: PipelineNode, cwd: str) -> tuple[str | None, str | None]:
-    """(runner id, problem) for an agent step."""
-    uses = node.config.get("uses")
-    runner: object = node.config.get("runner")
-    if not isinstance(runner, str):
-        try:
-            runner = load_agent_definition(Path(cwd) / str(uses)).runner
-        except Exception as error:  # a bad agent file is reported by the agent step itself
-            return None, f"cannot read agent file {uses}: {error}"
-    return str(runner), None
-
-
-def _check_children(
-    cfg: Harness2Config, node: PipelineNode, vctx: ValidateContext
-) -> list[ConfigIssue]:
-    issues: list[ConfigIssue] = []
-    steps = [n for child in node.children for n in _walk(child)]
-    agents = [n for n in steps if n.use == "agent"]
-    if not agents:
-        issues.append(
-            ConfigIssue("error", "`rsi.harness2` wraps no agent step: nothing to improve")
-        )
-    for step in steps:
-        resolved = vctx.registry.resolve(step.use)
-        if resolved is None:
-            continue
-        if resolved.kind == "action" and resolved.module.effects == "side-effect":
-            issues.append(
-                ConfigIssue(
-                    "error",
-                    f"`{step.use}` has side effects and cannot run inside `rsi.harness2`: it "
-                    "would repeat in every rollout. Move it after the rsi step.",
-                )
-            )
-        if step.use.startswith("human."):
-            issues.append(
-                ConfigIssue(
-                    "error",
-                    f"`{step.use}` cannot run inside `rsi.harness2` (a person "
-                    "would be asked in every rollout)",
-                )
-            )
-    for step in agents:
-        runner, problem = _surface_for(step, vctx.cwd)
-        if problem:
-            continue
-        mapped = SURFACE_FOR_RUNNER.get(runner or "")
-        if mapped is None:
-            known = ", ".join(sorted(SURFACE_FOR_RUNNER))
-            issues.append(
-                ConfigIssue(
-                    "error",
-                    f'Cannot improve the harness of runner "{runner}" yet (supported: {known})',
-                )
-            )
-        elif mapped != cfg.surface:
-            issues.append(
-                ConfigIssue(
-                    "warning",
-                    f'Agent step "{step.id}" runs on "{runner}" but `rsi.surface` is '
-                    f'"{cfg.surface}": the edits will not reach it',
-                )
-            )
-    return issues
-
-
-def _validate(cfg: Harness2Config, vctx: ValidateContext) -> list[ConfigIssue]:
-    issues: list[ConfigIssue] = []
-    for name, spec in (
-        ("improver", cfg.improver),
-        ("selector", cfg.selector_spec()),
-        ("reflector", cfg.reflector_spec()),
-        ("reviewer", cfg.reviewer_spec()),
-    ):
-        if vctx.registry.get_runner(spec.runner) is None:
-            issues.append(ConfigIssue("error", f'`rsi.{name}`: unknown runner "{spec.runner}"'))
-    if cfg.when is not None:
-        try:
-            problems = parse_expr(cfg.when).check(WHEN_VARIABLES)
-        except ValueError as error:
-            problems = [str(error)]
-        issues += [ConfigIssue("error", f"`rsi.when`: {p}") for p in problems]
-    if cfg.budget_is_default:
-        issues.append(
-            ConfigIssue(
-                "warning",
-                f"`rsi` sets no budget, so each item may spend up to ${cfg.budget_usd:.2f}; "
-                "set `rsi.budget_usd` to choose",
-            )
-        )
-    rollouts, sessions = 4 * cfg.k, 3 * cfg.k
-    issues.append(
-        ConfigIssue(
-            "warning",
-            f"rsi runs {rollouts} rollouts and {sessions} improvement sessions per item at "
-            f"k={cfg.k} (about {rollouts + sessions}x one agent run); spend is capped at "
-            f"${cfg.budget_usd:.2f} per item",
-        )
-    )
-    return issues
-
-
-def _validate_node(
-    cfg: Harness2Config, node: PipelineNode, vctx: ValidateContext
-) -> list[ConfigIssue]:
-    return _check_children(cfg, node, vctx)
-
-
 rsi_harness2_strategy: Strategy[Harness2Config] = define_strategy(
     Strategy(
         id="rsi.harness2",
         config=Harness2Config,
         run=_run,
         chain=False,
-        validate=_validate,
-        validate_node=_validate_node,
+        validate=validate,
+        validate_node=validate_node,
     )
 )
 

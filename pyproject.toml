@@ -75,8 +75,13 @@ src = [".", "tests"]
 extend-exclude = ["tests/fixtures"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "SIM", "ASYNC", "RUF", "PT", "C4", "PL", "TID"]
-ignore = ["PLR0913", "PLR2004", "PLR0911", "PLR0912", "PLR0915", "RUF012"]
+select = ["E", "F", "I", "B", "UP", "SIM", "ASYNC", "RUF", "PT", "C4", "C90", "PL", "TID"]
+# Not enforced: argument counts (keyword-only store and config APIs), return counts and magic
+# numbers read better as written. Complexity, branches and statements are enforced.
+ignore = ["PLR0913", "PLR2004", "PLR0911", "RUF012"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 12
 
 [tool.ruff.lint.per-file-ignores]
 # Prompt text carries markdown tables that are clearer unwrapped.
