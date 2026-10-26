@@ -114,14 +114,14 @@ Source: Harness² ([arXiv:2610.14224](https://arxiv.org/abs/2610.14224), [code](
 _Provenance and design_
 
 77. [x] Third-party provenance and citation: `THIRD_PARTY_NOTICES.md`, `third_party/harness2/{LICENSE,PROVENANCE.md}`, README citation, acknowledgements and the license note ("third-party code under `third_party/`, benchmarks and datasets retain their upstream licenses").
-78. [ ] Provenance check `scripts/check_provenance.py` (run by `poe docs-check` and CI): every ported file under `whiletrue/rsi/harness2/` carries the upstream Apache header plus a modification notice and is listed in `PROVENANCE.md` with its upstream path.
-79. [ ] Spike notes `docs/spike-rsi.md`: run the upstream demo from a scratch clone, trace one task end to end, record the concept mapping and the decisions (OQ-13, OQ-16).
-80. [ ] Port and refactor the method modules into `whiletrue/rsi/harness2/` (component tree and surfaces, ledger, library, run marker, selection, evidence context, prompts), typed to pyright strict, no global state, our logging and error types, Apache headers kept. Benchmark runners, judge, report, sweep scheduler and datasets are not ported.
+78. [x] Provenance check `scripts/check_provenance.py` (run by `poe docs-check` and CI): every ported file under `whiletrue/rsi/harness2/` carries the upstream Apache header plus a modification notice and is listed in `PROVENANCE.md` with its upstream path.
+79. [x] Spike notes `docs/spike-rsi.md`: run the upstream demo from a scratch clone, trace one task end to end, record the concept mapping and the decisions (OQ-13, OQ-16).
+80. [x] Port and refactor the method modules into `whiletrue/rsi/harness2/` (component tree and surfaces, ledger, library, run marker, selection, evidence context, prompts), typed to pyright strict, no global state, our logging and error types, Apache headers kept. Benchmark runners, judge, report, sweep scheduler and datasets are not ported.
 
 _Setting and surface_
 
 81. [ ] `rsi` configuration: top level and per agent (`rsi: true | false | { method: harness2, k, mode, domain, adopt, evidence, budget_usd, scope, when }`), default `false`; `--rsi/--no-rsi` on `run`. `validate` rules: needs a budget, limits on improver and selector agents, `workspace: git-worktree`, an adoption policy, and no side-effect modules inside the scope; `rsi: false` leaves every existing config valid and unchanged. `plan` prints the RSI stages and the worst-case cost multiplier.
-82. [ ] Editable surface (`SurfaceSpec`) for Claude Code mapping the eight components (system prompt, guardrails, memory, tool guidance, subagents, skills, scripts, plugins) to files in the worktree; opencode and Codex surfaces ported from Harness². Read, validate, write and diff a tree; hooks, scripts, permission rules and MCP flagged as always-approve. (OQ-16)
+82. [~] Editable surface (`SurfaceSpec`) for Claude Code mapping the components (system prompt, guardrails, memory, tool guidance, subagents, skills, scripts) to files in the worktree; Codex surface ported from Harness². _(Both are in `surfaces.py` with tree read, validate, write and diff. OpenCode is not ported: upstream materialises a custom layout that whiletrue has no step for. The "always-approve" flag is `SurfaceSpec.restricted`.)_ Read, validate, write and diff a tree; hooks, scripts, permission rules and MCP flagged as always-approve. (OQ-16)
 
 _Task-level recursion_
 

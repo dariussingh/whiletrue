@@ -7,6 +7,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import check_provenance as provenance_check
+
 ROOT = Path(__file__).resolve().parent.parent
 SKIP = {"node_modules", ".git", ".devenv", ".direnv", ".venv", "dist", "coverage", ".whiletrue"}
 FENCE = re.compile(r"```.*?```", re.DOTALL)
@@ -39,7 +42,7 @@ def main() -> int:
     if errors:
         return 1
     print("docs:check ok")
-    return 0
+    return provenance_check.main()
 
 
 if __name__ == "__main__":

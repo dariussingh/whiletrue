@@ -14,14 +14,16 @@ Method code is ported and refactored into `whiletrue/rsi/harness2/` (todo item 8
 
 | Upstream path | whiletrue path | Role |
 | --- | --- | --- |
-| `harness2/core/tree.py` | `whiletrue/rsi/harness2/tree.py`, `surfaces.py` | The c1..c8 editable component tree and per-framework surfaces |
-| `harness2/core/ledger.py` | `whiletrue/rsi/harness2/ledger.py` | Budget identity R = 4k rollouts, P = 3k improvement stages |
+| `harness2/core/tree.py` | `whiletrue/rsi/harness2/surfaces.py` | Per-framework editable surface (`SurfaceSpec`); Claude Code surface added |
+| `harness2/core/tree.py` | `whiletrue/rsi/harness2/tree.py` | Read, validate, write and diff a harness tree |
+| `harness2/core/ledger.py` | `whiletrue/rsi/harness2/ledger.py` | Budget identity R = 4k rollouts, P = 3k improvement sessions |
 | `harness2/core/library.py` | `whiletrue/rsi/harness2/library.py` | Per-domain experience library |
 | `harness2/core/runmark.py` | `whiletrue/rsi/harness2/runmark.py` | Rollout completion marker and harness fingerprint |
-| `harness2/core/selection.py` | `whiletrue/rsi/harness2/selection.py` | Blind, answer-free selection |
-| `harness2/core/context.py` | `whiletrue/rsi/harness2/context.py` | Evidence tree and answer-leak tripwires |
-| `harness2/core/prompts.py` | `whiletrue/rsi/harness2/prompts.py` | Improver, composer, selector and reflector prompts |
-| `harness2/core/recursion.py`, `proposer.py`, `spec.py` | `whiletrue/rsi/harness2/strategy.py` and the runtime adapters | Orchestration is rebuilt on whiletrue's runtime, following the same stage order |
+| `harness2/core/selection.py` | `whiletrue/rsi/harness2/selection.py` | Anonymisation, pool rule and answer parsing for blind selection |
+| `harness2/core/context.py` | `whiletrue/rsi/harness2/context.py` | Evidence tree and verdict-leak tripwires |
+| `harness2/core/prompts.py` | `whiletrue/rsi/harness2/prompts.py` | Improver, composer, selector and reflector prompts, retargeted to software work |
+
+Original whiletrue code that implements the method on whiletrue's runtime (rollouts, the `rsi.harness2` strategy, adoption) carries no upstream header and is MIT licensed. It follows the stage order of upstream `harness2/core/recursion.py`, `proposer.py` and `spec.py`, which were read but not copied.
 
 Not taken: `harness2/benchmarks/`, `harness2/substrate/`, `harness2/cli/`, `harness2/core/schedule.py`, `judge.py`, `report.py`, upstream `third_party/` (the JobBench, LAB and WorkBuddy runners and patches), and all datasets. Those keep their own upstream licenses, and the WorkBuddy-derived code carries a territorial limitation. whiletrue does not copy or redistribute any of it.
 
@@ -33,4 +35,10 @@ Not taken: `harness2/benchmarks/`, `harness2/substrate/`, `harness2/cli/`, `harn
 
 ## Modifications
 
-Listed per file in its module docstring. Nothing has been ported yet.
+Listed per file in its module docstring. Summary:
+
+- Typed to pyright strict; dataclasses and typed results replace dicts; our error types replace `AssertionError` and bare `ValueError`.
+- Path rules moved from module constants into `SurfaceSpec`; a `restricted` list and a Claude Code surface were added; the opencode surface was not ported.
+- Benchmark adapters, answer-key paths, rendered office artifacts and the alternative prompt pack were removed; prompts were retargeted from professional documents to software work.
+- The evidence tree takes plain `RolloutView` values; the verdict markers are whiletrue's gate names.
+- SHA-256 replaces SHA-1 in fingerprints and seeds; the marker file is `.rsi_complete`.
