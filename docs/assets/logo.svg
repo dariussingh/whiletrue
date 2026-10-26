@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="whiletrue logo: a loop arrow around a prompt chevron">
+  <rect width="128" height="128" rx="28" fill="#0f1419"/>
+  <path d="M64 24A40 40 0 1 1 31.2 41.1" fill="none" stroke="#7fd48a" stroke-width="9" stroke-linecap="round"/>
+  <path d="M17.7 44.7L31.2 41.1L32.5 55.0" fill="none" stroke="#7fd48a" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M54 50l16 14-16 14" fill="none" stroke="#d5dbe3" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M76 80h4" stroke="#6cc4e0" stroke-width="9" stroke-linecap="round"/>
+</svg>

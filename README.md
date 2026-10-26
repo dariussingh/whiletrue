@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/logo.svg" alt="whiletrue logo" width="96" height="96">
+
 # whiletrue
 
 **The loop around your coding agents.**
@@ -14,6 +16,14 @@ Run pipelines of agentic and deterministic steps around Claude Code, opencode an
 </div>
 
 > LangGraph builds the agent; whiletrue runs the loop around agents you already have.
+
+<div align="center">
+
+<img src="docs/assets/demo.svg" alt="Animated tmux session: a panel and two Claude Code panes work items in parallel, a test gate fails once and retries, a human approves a pull request, and resume replays finished steps" width="900">
+
+<sub>Scripted illustration of a run, not a recording: three items, two live Claude Code panes, a failing gate, a human approval and a resume.</sub>
+
+</div>
 
 ```bash
 uvx whiletrue init      # scaffold a Ralph loop
@@ -35,6 +45,7 @@ Coding agents are good at one task and bad at finishing a backlog unattended. wh
 
 - [Install](#install)
 - [Quickstart](#quickstart)
+- [Architecture](#architecture)
 - [Concepts](#concepts)
 - [Examples](#examples)
 - [Backends](#backends)
@@ -96,6 +107,12 @@ Failure output from the previous attempt (empty on the first try):
 ```
 
 Every agent must declare `limits`; `validate` refuses the config otherwise.
+
+## Architecture
+
+<img src="docs/assets/architecture.svg" alt="Architecture: whiletrue.yaml and the CLI drive the core engine (loader, scheduler, pipeline runtime, park and resume, plugin registry, SQLite store); built-in plugins connect it to agent CLIs, git, GitHub and tmux" width="900">
+
+The core knows nothing about git, GitHub, tmux or any agent. Every integration is a plugin built on the public plugin API, so you can add your own ([plugins](docs/plugins.md), [architecture](docs/architecture.md)).
 
 ## Concepts
 
