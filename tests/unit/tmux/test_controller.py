@@ -1,3 +1,4 @@
+import asyncio
 import shutil
 import uuid
 
@@ -182,3 +183,39 @@ async def test_against_a_real_tmux_server() -> None:
 def test_session_names_are_derived_from_the_project_directory() -> None:
     assert session_name("/home/me/dev/my.project:x") == "wt-my-project-x"
     assert session_name("/") == "wt-project"
+
+
+class SlowTmux(FakeTmux):
+    """Yields to the event loop on every call, like a real subprocess, and tracks the session."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.session_exists = False
+
+    async def __call__(self, argv: list[str]) -> ExecResult:
+        await asyncio.sleep(0)
+        if argv[0] == "has-session":
+            self.calls.append(argv)
+            return ExecResult(0 if self.session_exists else 1, "", "")
+        if argv[0] == "new-session":
+            self.calls.append(argv)
+            if self.session_exists:
+                return ExecResult(1, "", "duplicate session: wt-demo")
+            self.session_exists = True
+            return ExecResult(0, "", "")
+        return await super().__call__(argv)
+
+
+async def test_parallel_items_share_one_session_and_one_window() -> None:
+    fake = SlowTmux()
+    tmux = controller(fake)
+
+    async def start(name: str) -> PaneRef:
+        await tmux.ensure_session("watch", "/proj")
+        return await tmux.open_pane(title=name, argv=["claude"], cwd="/proj", env={})
+
+    panes = await asyncio.gather(start("a"), start("b"), start("c"))
+
+    assert fake.subcommands().count("new-session") == 1
+    assert fake.subcommands().count("new-window") == 1
+    assert len({pane.window for pane in panes}) == 1

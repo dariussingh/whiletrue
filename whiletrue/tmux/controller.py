@@ -62,6 +62,9 @@ class TmuxController:
         self._per_window = panes_per_window
         self._exec = exec if exec is not None else self._run_binary
         self._windows: list[str] = []
+        # Parallel items start their panes at the same moment; session and window creation are
+        # check-then-create, so they run one at a time.
+        self._lock = asyncio.Lock()
 
     async def _run_binary(self, argv: list[str]) -> ExecResult:
         prefix = ["-L", self._socket] if self._socket else []
@@ -89,6 +92,10 @@ class TmuxController:
         self, control_command: str | None = None, cwd: str | None = None
     ) -> None:
         """Creates the session (detached) with its control window unless it already exists."""
+        async with self._lock:
+            await self._ensure_session(control_command, cwd)
+
+    async def _ensure_session(self, control_command: str | None, cwd: str | None) -> None:
         if await self.has_session():
             return
         argv = ["new-session", "-d", "-s", self.session, "-n", "control"]
@@ -120,6 +127,12 @@ class TmuxController:
         self, *, title: str, argv: list[str], cwd: str, env: dict[str, str]
     ) -> PaneRef:
         """Starts `argv` in a new pane (a new window when the grid is full) and titles it."""
+        async with self._lock:
+            return await self._open_pane(title, argv, cwd, env)
+
+    async def _open_pane(
+        self, title: str, argv: list[str], cwd: str, env: dict[str, str]
+    ) -> PaneRef:
         flags = ["-d", "-P", "-F", "#{pane_id} #{window_id}", "-c", cwd]
         for key, value in env.items():
             flags += ["-e", f"{key}={value}"]

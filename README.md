@@ -19,9 +19,9 @@ Run pipelines of agentic and deterministic steps around Claude Code, opencode an
 
 <div align="center">
 
-<img src="docs/assets/demo.svg" alt="Animated tmux session: a panel and two Claude Code panes work items in parallel, a test gate fails once and retries, a human approves a pull request, and resume replays finished steps" width="900">
+<img src="docs/assets/demo-real.svg" alt="Recording of a real run: two Claude Code agents work in parallel in tmux panes while a control panel and shell show status, both items pass their pytest gate and park for human approval, then approve and resume finish them" width="900">
 
-<sub>Scripted illustration of a run, not a recording: three items, two live Claude Code panes, a failing gate, a human approval and a resume.</sub>
+<sub>A real run, not a mock-up: two Claude Code agents in parallel, a pytest gate, a human approval and a resume, about $0.23 in total. Captured from the live tmux panes; the two tmux windows are drawn side by side.</sub>
 
 </div>
 
