@@ -13,6 +13,7 @@ from whiletrue.core import (
     AgentDefinition,
     AgentLimits,
     AgentRequest,
+    AgentResult,
     ConfigError,
     ConfigIssue,
     Emit,
@@ -20,6 +21,7 @@ from whiletrue.core import (
     PortSpec,
     Registry,
     RunContext,
+    Runner,
     StepContext,
     ValidateContext,
     define_action,
@@ -118,68 +120,74 @@ def _validate(config: AgentConfig, vctx: ValidateContext) -> list[ConfigIssue]:
     return [*issues, *_runner_issues(definition, config.runner or definition.runner, vctx.registry)]
 
 
-async def _run(input: PortValues, ctx: StepContext[AgentConfig]) -> Emit:
-    definition = load_agent_definition(Path(ctx.cwd) / ctx.config.uses)
-    runner_id = ctx.config.runner or definition.runner
-    runner = ctx.registry.get_runner(runner_id)
-    if runner is None:
-        return Emit("fail", {"error": f'Unknown runner "{runner_id}"'})
+class _AgentCall:
+    """One run of an agent step: its request, events, session bookkeeping and result."""
 
-    prompt = render_template(
-        definition.prompt,
-        {**ctx.scope.snapshot(), "input": input.get("in"), **ctx.config.vars},
-    )
-
-    out_cap = next(iter(definition.outputs.values()), None)
-    structured = out_cap is not None and out_cap not in _UNSTRUCTURED
-    wall: AbortSignal | None = None
-    signal = ctx.signal
-    if definition.limits is not None and definition.limits.wall_ms is not None:
-        wall = AbortSignal.timeout(definition.limits.wall_ms)
-        signal = AbortSignal.any(ctx.signal, wall)
-
-    sessions: dict[str, str] | None = ctx.scope.get("sessions")
-    shared = definition.session if definition.session != "fresh" and sessions is not None else None
-    existing = sessions.get(shared) if sessions is not None and shared else None
-    new_session = str(uuid.uuid4())
-
-    def path(p: str) -> str:
-        return str(Path(ctx.cwd) / p)
-
-    request = AgentRequest(
-        prompt=prompt,
-        cwd=ctx.cwd,
-        model=definition.model,
-        allowed_tools=definition.tools,
-        permission_mode=definition.permission_mode,
-        output_schema=ctx.registry.caps.to_json_schema(out_cap) if structured and out_cap else None,
-        limits=AgentLimits(
-            budget_usd=definition.limits.budget_usd,
-            turns=definition.limits.turns,
-            wall_ms=definition.limits.wall_ms,
+    def __init__(
+        self,
+        input: PortValues,
+        ctx: StepContext[AgentConfig],
+        definition: AgentDefinition,
+        runner_id: str,
+    ) -> None:
+        self.input = input
+        self.ctx = ctx
+        self.definition = definition
+        self.runner_id = runner_id
+        self.out_cap = next(iter(definition.outputs.values()), None)
+        self.structured = self.out_cap is not None and self.out_cap not in _UNSTRUCTURED
+        self.sessions: dict[str, str] | None = ctx.scope.get("sessions")
+        shared = definition.session
+        self.shared = shared if shared != "fresh" and self.sessions is not None else None
+        self.existing = (
+            self.sessions.get(self.shared) if self.sessions is not None and self.shared else None
         )
-        if definition.limits is not None
-        else None,
-        session_id=None if existing else new_session,
-        resume=existing,
-        fork=bool(existing) and definition.fork,
-        add_dirs=[path(d) for d in definition.add_dirs] if definition.add_dirs else None,
-        append_system_prompt_file=path(definition.append_system_prompt_file)
-        if definition.append_system_prompt_file
-        else None,
-        mcp_config=[path(c) for c in definition.mcp_config] if definition.mcp_config else None,
-        bare=definition.bare,
-        on_done=definition.on_done,
-        step_key=ctx.step_key,
-        label=f"{ctx.item_id} {definition.name}",
-        item=ctx.scope.get("item"),
-        output_cap=out_cap,
-        validate_output=(lambda v, cap=out_cap: ctx.registry.caps.validate(cap, v))
-        if structured and out_cap
-        else None,
-    )
+        self.new_session = str(uuid.uuid4())
 
-    def on_event(event: dict[str, Any]) -> None:
+    def _path(self, relative: str) -> str:
+        return str(Path(self.ctx.cwd) / relative)
+
+    def request(self) -> AgentRequest:
+        ctx, d, out_cap = self.ctx, self.definition, self.out_cap
+        prompt = render_template(
+            d.prompt, {**ctx.scope.snapshot(), "input": self.input.get("in"), **ctx.config.vars}
+        )
+        structured_cap = out_cap if self.structured else None
+        return AgentRequest(
+            prompt=prompt,
+            cwd=ctx.cwd,
+            model=d.model,
+            allowed_tools=d.tools,
+            permission_mode=d.permission_mode,
+            output_schema=ctx.registry.caps.to_json_schema(structured_cap)
+            if structured_cap
+            else None,
+            limits=AgentLimits(
+                budget_usd=d.limits.budget_usd, turns=d.limits.turns, wall_ms=d.limits.wall_ms
+            )
+            if d.limits is not None
+            else None,
+            session_id=None if self.existing else self.new_session,
+            resume=self.existing,
+            fork=bool(self.existing) and d.fork,
+            add_dirs=[self._path(x) for x in d.add_dirs] if d.add_dirs else None,
+            append_system_prompt_file=self._path(d.append_system_prompt_file)
+            if d.append_system_prompt_file
+            else None,
+            mcp_config=[self._path(x) for x in d.mcp_config] if d.mcp_config else None,
+            bare=d.bare,
+            on_done=d.on_done,
+            step_key=ctx.step_key,
+            label=f"{ctx.item_id} {d.name}",
+            item=ctx.scope.get("item"),
+            output_cap=out_cap,
+            validate_output=(lambda v, cap=structured_cap: ctx.registry.caps.validate(cap, v))
+            if structured_cap
+            else None,
+        )
+
+    def on_event(self, event: dict[str, Any]) -> None:
+        ctx = self.ctx
         if event.get("kind") == "steer" and ctx.store is not None:
             ctx.store.add_steer(
                 run_id=ctx.run_id,
@@ -188,62 +196,89 @@ async def _run(input: PortValues, ctx: StepContext[AgentConfig]) -> Emit:
                 prompt=str(event.get("prompt", "")),
                 created_at=ctx.now(),
             )
-        ctx.bus.emit(
-            "agent.event",
-            ctx.run_id,
-            {"node": ctx.node_id, **event},
-            item_id=ctx.item_id,
-        )
+        ctx.bus.emit("agent.event", ctx.run_id, {"node": ctx.node_id, **event}, item_id=ctx.item_id)
         #: A scope may tap every event of the agents under it (`rsi` records trajectories).
         tap = ctx.scope.get("agent_tap")
         if callable(tap):
             tap(event)
 
-    raw_tap: Callable[[dict[str, Any]], None] | None = ctx.scope.get("agent_raw_tap")
-    run_context = RunContext(
-        signal=signal, on_event=on_event, on_raw=raw_tap if callable(raw_tap) else None
-    )
-    on_event({"kind": "runner", "runner": runner_id})
-    try:
-        if ctx.agent_slots is not None:
-            async with ctx.agent_slots:
-                result = await runner.run(request, run_context)
-        else:
-            result = await runner.run(request, run_context)
-    finally:
-        if wall is not None:
-            wall.dispose()
-            signal.dispose()
-    if shared and sessions is not None and not (existing and definition.fork):
-        # Remember the conversation (even a failed one) so a retry or a later step continues it.
-        sessions[shared] = result.session_id or existing or new_session
-    if result.cost_usd:
-        ctx.record_cost(result.cost_usd)
-        on_event({"kind": "agent.cost", "usd": result.cost_usd})
-    if result.steered_cost_usd is not None:
-        on_event(
-            {
-                "kind": "cost",
-                "agent_usd": (result.cost_usd or 0.0) - result.steered_cost_usd,
-                "steered_usd": result.steered_cost_usd,
-            }
+    async def execute(self, runner: Runner) -> AgentResult:
+        """Run the agent (holding an agent slot if the run caps them), within its wall limit."""
+        ctx, limits = self.ctx, self.definition.limits
+        wall: AbortSignal | None = None
+        signal = ctx.signal
+        if limits is not None and limits.wall_ms is not None:
+            wall = AbortSignal.timeout(limits.wall_ms)
+            signal = AbortSignal.any(ctx.signal, wall)
+        raw_tap: Callable[[dict[str, Any]], None] | None = ctx.scope.get("agent_raw_tap")
+        run_context = RunContext(
+            signal=signal, on_event=self.on_event, on_raw=raw_tap if callable(raw_tap) else None
         )
-    if result.park:
-        return Emit(
-            "needs_human",
-            {"reason": result.park, "detail": result.error, "text": result.text},
-        )
-    if not result.ok:
-        return Emit("fail", {"error": result.error or "agent failed", "text": result.text})
-    value = result.output if result.output is not None else result.text
-    if out_cap:
-        check = ctx.registry.caps.validate(out_cap, value)
-        if not check.ok:
-            return Emit(
-                "fail",
-                {"error": f"Agent output does not match {out_cap}: {'; '.join(check.errors)}"},
+        self.on_event({"kind": "runner", "runner": self.runner_id})
+        request = self.request()
+        try:
+            if ctx.agent_slots is not None:
+                async with ctx.agent_slots:
+                    return await runner.run(request, run_context)
+            return await runner.run(request, run_context)
+        finally:
+            if wall is not None:
+                wall.dispose()
+                signal.dispose()
+
+    def account(self, result: AgentResult) -> None:
+        """Remember the session and record what the run cost."""
+        if (
+            self.shared
+            and self.sessions is not None
+            and not (self.existing and self.definition.fork)
+        ):
+            # Remember the conversation (even a failed one) so a retry or a later step continues it.
+            self.sessions[self.shared] = result.session_id or self.existing or self.new_session
+        if result.cost_usd:
+            self.ctx.record_cost(result.cost_usd)
+            self.on_event({"kind": "agent.cost", "usd": result.cost_usd})
+        if result.steered_cost_usd is not None:
+            self.on_event(
+                {
+                    "kind": "cost",
+                    "agent_usd": (result.cost_usd or 0.0) - result.steered_cost_usd,
+                    "steered_usd": result.steered_cost_usd,
+                }
             )
-    return Emit("ok", value)
+
+    def emit(self, result: AgentResult) -> Emit:
+        if result.park:
+            return Emit(
+                "needs_human",
+                {"reason": result.park, "detail": result.error, "text": result.text},
+            )
+        if not result.ok:
+            return Emit("fail", {"error": result.error or "agent failed", "text": result.text})
+        value = result.output if result.output is not None else result.text
+        if self.out_cap:
+            check = self.ctx.registry.caps.validate(self.out_cap, value)
+            if not check.ok:
+                return Emit(
+                    "fail",
+                    {
+                        "error": f"Agent output does not match {self.out_cap}: "
+                        + "; ".join(check.errors)
+                    },
+                )
+        return Emit("ok", value)
+
+
+async def _run(input: PortValues, ctx: StepContext[AgentConfig]) -> Emit:
+    definition = load_agent_definition(Path(ctx.cwd) / ctx.config.uses)
+    runner_id = ctx.config.runner or definition.runner
+    runner = ctx.registry.get_runner(runner_id)
+    if runner is None:
+        return Emit("fail", {"error": f'Unknown runner "{runner_id}"'})
+    call = _AgentCall(input, ctx, definition, runner_id)
+    result = await call.execute(runner)
+    call.account(result)
+    return call.emit(result)
 
 
 #: Runs a prompt-defined agent (markdown with frontmatter) on a runner.
