@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.1.1
 
 - Fixed: parallel interactive items raced to create the tmux session. The loser failed with `duplicate session` and that error was fed to the agent as its previous failure. Session and pane creation now run one at a time, and parallel agents share one window grid.
+- Docs: a new README with a recording of a real run, architecture and flow diagrams, and a step-by-step tutorial (`docs/tutorial.md`).
 
 ## 0.1.0 (first release)
 
