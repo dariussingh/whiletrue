@@ -4,6 +4,8 @@
 
 With `rsi` off nothing changes: no plugin is loaded and no file is written.
 
+<img src="assets/rsi-architecture.svg" alt="rsi architecture: task-level recursion per item and harnessing-level recursion across items" width="900">
+
 ## Turn it on
 
 ```yaml

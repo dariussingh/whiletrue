@@ -112,7 +112,7 @@ Every agent must declare `limits`; `validate` refuses the config otherwise.
 
 <img src="docs/assets/architecture.svg" alt="Architecture: whiletrue.yaml and the CLI drive the core engine (loader, scheduler, pipeline runtime, park and resume, plugin registry, SQLite store); built-in plugins connect it to agent CLIs, git, GitHub and tmux" width="900">
 
-The core knows nothing about git, GitHub, tmux or any agent. Every integration is a plugin built on the public plugin API, so you can add your own ([plugins](docs/plugins.md), [architecture](docs/architecture.md)).
+The core knows nothing about git, GitHub, tmux or any agent. Every integration is a plugin built on the public plugin API, including the optional `rsi` layer, so you can add your own ([plugins](docs/plugins.md), [architecture](docs/architecture.md)).
 
 ## Concepts
 
@@ -241,6 +241,8 @@ Live tests against real agent CLIs are opt-in: `WHILETRUE_LIVE=1 uv run pytest t
 ## Recursive self-improvement
 
 Optional and off by default: `rsi: true` lets whiletrue improve the harness around your agent (prompts, skills, subagents) item by item with the Propose, Probe, Compose method from Harness², using isolated rollouts, blind selection and a per-domain experience library. A person approves what is adopted. It multiplies agent spend (about 7 times at `k: 1`) and is capped by `budget_usd`. See [docs/rsi.md](docs/rsi.md). Next: Gemini CLI support.
+
+<img src="docs/assets/rsi-architecture.svg" alt="rsi architecture: task-level recursion per item (reference rollouts, propose, INV and DOM candidates, compose, blind selection, apply) and harnessing-level recursion across items (reflect, human adoption, experience library)" width="900">
 
 ## Acknowledgements and citation
 
