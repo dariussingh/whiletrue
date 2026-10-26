@@ -18,10 +18,11 @@ from whiletrue.claude_code import (
     TmuxPaneHost,
     claude_code_plugin,
 )
+from whiletrue.codex import CodexOptions, codex_plugin
 from whiletrue.control import control_plugin
 from whiletrue.core import Plugin, Registry
 from whiletrue.git import git_plugin
-from whiletrue.github import GitHubClient, github_plugin
+from whiletrue.github import FileBackedGitHub, GitHubClient, github_plugin
 from whiletrue.opencode import OpencodeOptions, opencode_plugin
 from whiletrue.tmux import TmuxController, session_name
 
@@ -60,7 +61,9 @@ def create_default_registry(options: RegistryOptions | None = None) -> Registry:
     registry.use(control_plugin, version)
     registry.use(basics_plugin, version)
     registry.use(git_plugin, version)
-    registry.use(github_plugin(opts.github), version)
+    fake_github = os.environ.get("WHILETRUE_FAKE_GITHUB")
+    github = opts.github or (FileBackedGitHub(fake_github) if fake_github else None)
+    registry.use(github_plugin(github), version)
     command = opts.claude_command or os.environ.get("WHILETRUE_CLAUDE_BIN") or "claude"
     project = opts.project_dir or os.getcwd()
     host = opts.pane_host or TmuxPaneHost(
@@ -79,6 +82,12 @@ def create_default_registry(options: RegistryOptions | None = None) -> Registry:
             OpencodeOptions(
                 command=os.environ.get("WHILETRUE_OPENCODE_BIN") or "opencode", host=host
             )
+        ),
+        version,
+    )
+    registry.use(
+        codex_plugin(
+            CodexOptions(command=os.environ.get("WHILETRUE_CODEX_BIN") or "codex", host=host)
         ),
         version,
     )

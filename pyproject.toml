@@ -4,12 +4,23 @@ build-backend = "hatchling.build"
 
 [project]
 name = "whiletrue"
-version = "0.0.0"
+version = "0.1.0"
 description = "Run configurable loops of agentic and deterministic steps around coding agents."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Darius Singh" }]
+keywords = ["agents", "claude-code", "codex", "opencode", "orchestration", "pipelines", "ralph"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Build Tools",
+  "Typing :: Typed",
+]
 requires-python = ">=3.12"
 dependencies = [
   "pydantic>=2.9,<3",
@@ -19,6 +30,8 @@ dependencies = [
 
 [project.urls]
 Repository = "https://github.com/dariussingh/whiletrue"
+Changelog = "https://github.com/dariussingh/whiletrue/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/dariussingh/whiletrue/tree/main/docs"
 
 [project.scripts]
 whiletrue = "whiletrue.cli.app:entrypoint"

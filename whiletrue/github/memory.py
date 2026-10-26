@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import replace
 
 from whiletrue.github.client import GhComment, GhIssue, GhPullRequest, GitHubError
@@ -36,7 +37,7 @@ class InMemoryGitHub:
             kind="inline" if kind == "inline" else "issue",
             author=author,
             body=body,
-            created_at=self._next_comment,
+            created_at=int(time.time() * 1000),
             url=f"https://example.test/pr/{number}#c{comment_id}",
             thread_root=(root or comment_id) if kind == "inline" else None,
         )

@@ -3,6 +3,10 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
+import re
+import shlex
+import uuid
+from pathlib import Path
 from typing import Literal, Protocol
 
 from whiletrue.basics.process import kill_process_group
@@ -112,3 +116,49 @@ class _ProcessPane:
         if self._proc.returncode is None:
             kill_process_group(self._proc.pid)
         await self._proc.wait()
+
+
+class StreamMirror:
+    """Shows a headless step's live output in a read-only pane (`tail -F` of a log file).
+
+    Without a pane host it does nothing, so runners can call it unconditionally.
+    """
+
+    def __init__(self, host: PaneHost | None) -> None:
+        self._host = host
+        self._log: Path | None = None
+        self._pane: Pane | None = None
+
+    async def open(self, cwd: str, step_key: str | None, label: str | None) -> Path | None:
+        if self._host is None:
+            return None
+        key = re.sub(r"[^A-Za-z0-9_.-]+", "_", step_key or uuid.uuid4().hex)[:80]
+        directory = Path(cwd) / ".whiletrue" / "sessions" / f"{key}-{uuid.uuid4().hex[:6]}"
+        directory.mkdir(parents=True, exist_ok=True)
+        self._log = directory / "stream.log"
+        self._log.write_text("")
+        done = shlex.quote(str(self._log) + ".done")
+        script = (
+            f"tail -n +1 -F {shlex.quote(str(self._log))} & p=$!; "
+            f"while [ ! -e {done} ]; do sleep 0.3; done; sleep 0.5; kill $p"
+        )
+        try:
+            self._pane = await self._host.open(
+                title=label or "agent", argv=["sh", "-c", script], cwd=cwd, env={}
+            )
+        except Exception:
+            self._pane = None
+        return self._log
+
+    def note(self, line: str) -> None:
+        if self._log is not None:
+            with self._log.open("a", encoding="utf-8") as handle:
+                handle.write(line + "\n")
+
+    async def close(self, *, keep: bool, title: str) -> None:
+        if self._log is None:
+            return
+        self._log.with_name(self._log.name + ".done").write_text("done")
+        if self._pane is not None:
+            with contextlib.suppress(Exception):
+                await self._pane.finish(keep=keep, title=title)

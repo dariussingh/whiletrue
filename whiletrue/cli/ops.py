@@ -8,7 +8,7 @@ import os
 import time
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from whiletrue.cli.common import EXIT, Io
 from whiletrue.core import (
@@ -62,6 +62,18 @@ class RunLock:
             return self._path.read_text().strip() or "?"
         except OSError:
             return "?"
+
+
+def item_line(item: Any) -> str:
+    """One result line; a failure or park says why, so nobody has to dig in the database."""
+    line = f"  {item.item_id}: {item.state} ({item.port})"
+    value: Any = item.value
+    if item.port in ("fail", "needs_human", "rejected") and isinstance(value, dict):
+        fields = cast(dict[str, Any], value)
+        why = fields.get("error") or fields.get("reason") or fields.get("detail")
+        if why:
+            line += f" — {str(why).strip().splitlines()[0][:200]}"
+    return line + "\n"
 
 
 def _status_code(status: str) -> int:
@@ -141,7 +153,7 @@ async def resume(io: Io, loaded: _Loaded, run_id: str | None, lock_hash: str | N
         )
         io.out(f"resumed {recording.run_id} as run {result.run_id}: {result.status}\n")
         for item in result.items:
-            io.out(f"  {item.item_id}: {item.state} ({item.port})\n")
+            io.out(item_line(item))
         return _status_code(result.status)
     finally:
         store.close()
@@ -275,8 +287,19 @@ async def logs(io: Io, item_id: str | None, follow: bool) -> int:
         store.close()
 
 
+def _lineage_runs(store: SqliteStore, run_id: str) -> list[str]:
+    """The run and every other run of the same lineage (the resumes of one piece of work)."""
+
+    def lineage_of(rid: str) -> str:
+        started = store.list_events(rid, type="run.started")
+        return str(started[0].data.get("lineage", rid)) if started else rid
+
+    wanted = lineage_of(run_id)
+    return [r.id for r in store.list_runs() if lineage_of(r.id) == wanted]
+
+
 def cost(io: Io, run_id: str | None) -> int:
-    """Spend by item, by step and by runner."""
+    """Spend by item, step and runner, over a run and all its resumes."""
     db_path = Path(io.cwd) / ".whiletrue" / "state.db"
     if not db_path.exists():
         io.err("No runs yet (.whiletrue/state.db not found)\n")
@@ -287,21 +310,26 @@ def cost(io: Io, run_id: str | None) -> int:
         if run is None:
             io.err("No runs yet\n")
             return EXIT.failed
+        runs = _lineage_runs(store, run.id)
         runner_of: dict[tuple[str, str], str] = {}
-        for event in store.list_events(run.id, type="agent.event"):
-            if event.data.get("kind") == "runner" and event.item_id:
-                runner_of[(event.item_id, str(event.data.get("node")))] = str(event.data["runner"])
         by_item: dict[str, float] = defaultdict(float)
         by_step: dict[str, float] = defaultdict(float)
         by_runner: dict[str, float] = defaultdict(float)
-        for step in store.list_steps(run.id):
-            if step.cost_usd <= 0:
-                continue
-            by_item[step.item_id] += step.cost_usd
-            by_step[step.node_path] += step.cost_usd
-            by_runner[runner_of.get((step.item_id, step.node_path), "other")] += step.cost_usd
+        for rid in runs:
+            for event in store.list_events(rid, type="agent.event"):
+                if event.data.get("kind") == "runner" and event.item_id:
+                    key = (event.item_id, str(event.data.get("node")))
+                    runner_of[key] = str(event.data["runner"])
+            for step in store.list_steps(rid):
+                if step.cost_usd <= 0:
+                    continue
+                by_item[step.item_id] += step.cost_usd
+                by_step[step.node_path] += step.cost_usd
+                runner = runner_of.get((step.item_id, step.node_path), "other")
+                by_runner[runner] += step.cost_usd
         total = sum(by_item.values())
-        io.out(f"run {run.id}  total ${total:.4f}\n")
+        span = f" (over {len(runs)} runs)" if len(runs) > 1 else ""
+        io.out(f"run {run.id}  total ${total:.4f}{span}\n")
         for title, table in (("by item", by_item), ("by step", by_step), ("by runner", by_runner)):
             io.out(f"{title}:\n")
             for name, usd in sorted(table.items(), key=lambda kv: -kv[1]):

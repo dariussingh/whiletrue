@@ -1,17 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import re
-import shlex
-import uuid
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, cast
 
 from whiletrue.basics.process import kill_process_group
-from whiletrue.claude_code.panes import PaneHost
+from whiletrue.claude_code.panes import PaneHost, StreamMirror
 from whiletrue.core import AgentRequest, AgentResult, RunContext, RunnerCapabilities
 
 _LINE_LIMIT = 64 * 1024 * 1024
@@ -84,47 +80,16 @@ class OpencodeRunner:
     async def run(self, request: AgentRequest, ctx: RunContext) -> AgentResult:
         if ctx.signal.aborted:
             return AgentResult(ok=False, text="", error="aborted")
-        log = await self._open_log(request)
-        pane = await self._open_pane(log, request) if log is not None else None
+        mirror = StreamMirror(self._options.host)
+        await mirror.open(request.cwd, request.step_key, request.label or "opencode")
         try:
-            return await self._run(request, ctx, log)
+            return await self._run(request, ctx, mirror)
         finally:
-            if log is not None:
-                log.with_name(log.name + ".done").write_text("done")
-            if pane is not None:
-                with contextlib.suppress(Exception):
-                    await pane.finish(
-                        keep=request.on_done == "keep", title=f"{request.label} (done)"
-                    )
+            await mirror.close(keep=request.on_done == "keep", title=f"{request.label} (done)")
 
-    async def _open_log(self, request: AgentRequest) -> Path | None:
-        if self._options.host is None:
-            return None
-        key = re.sub(r"[^A-Za-z0-9_.-]+", "_", request.step_key or uuid.uuid4().hex)[:80]
-        directory = Path(request.cwd) / ".whiletrue" / "sessions" / f"{key}-{uuid.uuid4().hex[:6]}"
-        directory.mkdir(parents=True, exist_ok=True)
-        log = directory / "stream.log"
-        log.write_text("")
-        return log
-
-    async def _open_pane(self, log: Path, request: AgentRequest) -> Any:
-        assert self._options.host is not None
-        done = shlex.quote(str(log) + ".done")
-        script = (
-            f"tail -n +1 -F {shlex.quote(str(log))} & p=$!; "
-            f"while [ ! -e {done} ]; do sleep 0.3; done; sleep 0.5; kill $p"
-        )
-        try:
-            return await self._options.host.open(
-                title=request.label or "opencode",
-                argv=["sh", "-c", script],
-                cwd=request.cwd,
-                env={},
-            )
-        except Exception:
-            return None
-
-    async def _run(self, request: AgentRequest, ctx: RunContext, log: Path | None) -> AgentResult:
+    async def _run(
+        self, request: AgentRequest, ctx: RunContext, mirror: StreamMirror
+    ) -> AgentResult:
         opts = self._options
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -147,10 +112,7 @@ class OpencodeRunner:
             if ctx.on_event is not None:
                 ctx.on_event(event)
 
-        def note(line: str) -> None:
-            if log is not None:
-                with log.open("a", encoding="utf-8") as handle:
-                    handle.write(line + "\n")
+        note = mirror.note
 
         async def drive() -> None:
             assert proc.stdout is not None

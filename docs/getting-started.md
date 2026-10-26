@@ -83,6 +83,10 @@ Sessions: `session: fresh` (default) starts a new conversation; `session: item` 
 
 **Recipes** are ready-made loops: `composite: { uses: "recipe:ralph", params: { agent: ./agents/fixer.md } }`. See [reference.md](reference.md#composites-and-recipes).
 
+## Backends: Claude Code, opencode, Codex
+
+Pick per agent with `runner:`; mix them in one pipeline. `claude-code-headless` (default) and `claude-code` (a live tmux pane you can type into) run Claude Code; `opencode` runs `opencode run`; `codex` runs `codex exec`. Each needs its own CLI installed and logged in; set `WHILETRUE_CLAUDE_BIN`, `WHILETRUE_OPENCODE_BIN` or `WHILETRUE_CODEX_BIN` if it is not on `PATH`. Structured `outputs:` work on all of them (checked against the cap). Budgets are enforced by the two Claude Code runners only. See [authoring.md](authoring.md#choosing-a-backend).
+
 ## People in the loop
 
 A **human gate** parks an item until a person decides, without stopping other work:

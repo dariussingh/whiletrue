@@ -1,0 +1,41 @@
+name: Release
+# Pushing a tag like v0.1.0 checks, builds and publishes to PyPI (trusted publishing: no token
+# is stored; configure the project on PyPI first), then creates the GitHub release.
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with: { enable-cache: true }
+      - run: uv sync --all-groups --locked
+      - run: uv run poe check
+      - name: The tag must match the package version
+        run: test "v$(uv run python -c 'import importlib.metadata as m; print(m.version("whiletrue"))')" = "${GITHUB_REF_NAME}"
+      - run: uv build
+      - uses: actions/upload-artifact@v4
+        with: { name: dist, path: dist/ }
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: dist, path: dist/ }
+      - uses: pypa/gh-action-pypi-publish@release/v1
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: dist, path: dist/ }
+      - run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file CHANGELOG.md
+        env: { GH_TOKEN: "${{ github.token }}" }

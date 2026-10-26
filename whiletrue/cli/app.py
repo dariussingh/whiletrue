@@ -177,7 +177,7 @@ async def _run_loaded(io: Io, loaded: _Loaded) -> int:
         )
         io.out(f"run {result.run_id}: {result.status}\n")
         for item in result.items:
-            io.out(f"  {item.item_id}: {item.state} ({item.port})\n")
+            io.out(ops.item_line(item))
         return {
             "done": EXIT.ok,
             "parked": EXIT.parked,

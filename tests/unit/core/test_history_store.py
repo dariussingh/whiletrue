@@ -153,3 +153,9 @@ def test_interrupting_a_run_parks_what_was_in_flight(store: StateStore) -> None:
     assert {i.id: i.state for i in store.list_items("r1")} == {"a": "parked", "b": "done"}
     run = store.get_run("r1")
     assert run is not None and (run.status, run.ended_at) == ("parked", 50)
+
+
+def test_runs_list_oldest_first(store: StateStore) -> None:
+    store.create_run(id="r2", pipeline_hash="h", started_at=5)
+    store.create_run(id="r0", pipeline_hash="h", started_at=0)
+    assert [r.id for r in store.list_runs()] == ["r0", "r1", "r2"]

@@ -116,6 +116,10 @@ class SqliteStore:
     def get_run(self, id: str) -> RunRecord | None:
         return self._run(self._db.execute("SELECT * FROM runs WHERE id = ?", (id,)).fetchone())
 
+    def list_runs(self) -> list[RunRecord]:
+        rows = self._db.execute("SELECT * FROM runs ORDER BY started_at, rowid").fetchall()
+        return [run for run in (self._run(r) for r in rows) if run is not None]
+
     def latest_run(self) -> RunRecord | None:
         return self._run(
             self._db.execute(

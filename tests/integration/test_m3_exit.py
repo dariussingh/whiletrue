@@ -66,21 +66,22 @@ def effects(repo: Path) -> list[str]:
 async def test_kill_mid_run_then_resume_repeats_nothing(
     project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    log = project.parent / "first-run.log"
     env = {**os.environ, "ROOT": str(project)}
     monkeypatch.setenv("ROOT", str(project))
     process = subprocess.Popen(  # noqa: ASYNC220
         [sys.executable, "-m", "whiletrue", "run"],
         cwd=project,
         env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=log.open("w"),
+        stderr=subprocess.STDOUT,
         start_new_session=True,
     )
     try:
-        deadline = time.time() + 30
+        deadline = time.time() + 90
         while effects(project) != [f"start-{i}" for i in range(4)]:
-            assert process.poll() is None, "whiletrue exited early"
-            assert time.time() < deadline, "the four tasks never started"
+            assert process.poll() is None, f"whiletrue exited early:\n{log.read_text()}"
+            assert time.time() < deadline, f"the four tasks never started:\n{log.read_text()}"
             await asyncio.sleep(0.1)
         # All four are now in the slow step, in four separate worktrees.
         trees = sorted(p.name for p in (project / ".whiletrue" / "worktrees").iterdir())

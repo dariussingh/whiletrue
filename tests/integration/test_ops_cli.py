@@ -256,3 +256,43 @@ async def test_resume_takes_the_sources_latest_word(cli: Cli) -> None:
     assert await cli("resume") == EXIT.parked  # C is new and waits at its own gate
     assert "no longer in the source, dropped: a" in cli.out
     assert "c-after" not in lines(cli) and "b-after" in lines(cli) and "a-after" not in lines(cli)
+
+
+async def test_cost_adds_up_across_a_run_and_its_resumes(
+    cli: Cli, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = cli.dir / "fake-claude"
+    fake.write_text(
+        "#!/bin/sh\ncat > /dev/null\necho "
+        '\'{"type":"result","subtype":"success","is_error":false,"result":"ok",'
+        '"total_cost_usd":0.5,"num_turns":1,"session_id":"s"}\'\n'
+    )
+    fake.chmod(0o755)
+    monkeypatch.setenv("WHILETRUE_CLAUDE_BIN", str(fake))
+    (cli.dir / "agents").mkdir()
+    (cli.dir / "agents" / "a.md").write_text(
+        "---\nagent: a\nlimits: { budget_usd: 1, turns: 3, wall: 1m }\n---\nDo it\n"
+    )
+    write(
+        cli,
+        "pipeline:\n  - agent: { uses: ./agents/a.md }\n  - human.approve: {}\n"
+        "  - agent: { uses: ./agents/a.md }\n",
+    )
+    assert await cli("run") == EXIT.parked
+    await cli("approve", "main")
+    assert await cli("resume") == EXIT.ok
+    cli.reset()
+    assert await cli("cost") == EXIT.ok
+    assert "total $1.0000 (over 2 runs)" in cli.out  # 0.50 before the gate + 0.50 after
+
+
+async def test_a_failed_item_says_why_in_the_run_summary(cli: Cli) -> None:
+    write(cli, "pipeline:\n  - shell: { run: 'echo nope >&2; exit 3' }\n")
+    assert await cli("run") == EXIT.parked
+    assert "main: parked (fail) — `echo nope >&2; exit 3` exited with code 3" in cli.out
+
+
+async def test_a_park_for_a_person_says_what_it_is_waiting_on(cli: Cli) -> None:
+    write(cli, "pipeline:\n  - human.approve: { what: the plan }\n")
+    assert await cli("run") == EXIT.parked
+    assert "main: parked (needs_human)" in cli.out

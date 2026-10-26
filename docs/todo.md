@@ -100,9 +100,11 @@ Work top to bottom. Items are numbered globally; `[ ]` = open. A milestone is do
 
 ## Phase v0.1 · Release
 
-71. [ ] Write the reference `whiletrue.yaml` (issue loop) and run it on a real milestone, 4 items in parallel.
-72. [ ] Exercise a `rejected` → fix route and a crash/resume on that run; fix what breaks.
-73. [ ] Verify every CLI command in the v0.1 surface exists and is documented: `init validate plan run resume status attach approve reject comment history rerun cancel logs cost replay`.
-74. [ ] User docs: quickstart, pipeline/composite/agent authoring guides, plugin authoring guide, CLI reference.
-75. [ ] Raise coverage floor to target; resolve remaining open questions; final `docs:check`.
-76. [ ] Publish `whiletrue` to PyPI; tag `v0.1.0`; release notes.
+71. [~] Write the reference `whiletrue.yaml` (issue loop) and run it on a real milestone, 4 items in parallel. _(reference pipeline is in `examples/issue-loop/`; run end to end with 4 issues, one dependency, real Claude Code agents, a local `origin` and a file-backed fake GitHub. Not yet run against a real GitHub milestone: that creates real PRs and needs your repo.)_
+72. [x] Exercise a `rejected` → fix route and a crash/resume on that run; fix what breaks.
+73. [x] Verify every CLI command in the v0.1 surface exists and is documented: `init validate plan run resume status attach approve reject comment history rerun cancel logs cost replay`.
+74. [x] User docs: quickstart, pipeline/composite/agent authoring guides, plugin authoring guide, CLI reference.
+75. [x] Raise coverage floor to target; resolve remaining open questions; final `docs:check`. _(OQ-2, budget estimate accuracy, is deferred past v0.1 and listed as a known limit.)_
+76. [~] Publish `whiletrue` to PyPI; tag `v0.1.0`; release notes.
+
+> Item 76: version `0.1.0`, the wheel (checked to contain the plugin, recipes and `py.typed`, and installed in a clean venv), `CHANGELOG.md` and `.github/workflows/release.yml` are ready. Publishing is the owner's step: create the `whiletrue` project on PyPI with a trusted publisher for this repo and the `pypi` environment, then `git tag v0.1.0 && git push origin v0.1.0`.

@@ -9,11 +9,13 @@ from whiletrue.github.client import (
     GitHubError,
     repo_from_remote,
 )
+from whiletrue.github.filebacked import FileBackedGitHub
 from whiletrue.github.memory import InMemoryGitHub
 from whiletrue.github.plugin import github_plugin
 from whiletrue.github.specs import blocked_by_in_body, parse_spec_refs
 
 __all__ = [
+    "FileBackedGitHub",
     "GhCliClient",
     "GhComment",
     "GhIssue",

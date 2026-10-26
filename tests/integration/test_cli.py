@@ -435,6 +435,7 @@ class TestLockFile:
         assert set(pinned) == {
             "whiletrue.basics",
             "whiletrue.claude_code",
+            "whiletrue.codex",
             "whiletrue.control",
             "whiletrue.git",
             "whiletrue.github",
@@ -552,7 +553,7 @@ class TestAttach:
 
 def test_the_default_registry_has_every_runner_and_plugin() -> None:
     registry = create_default_registry()
-    for runner in ("claude-code-headless", "claude-code", "opencode"):
+    for runner in ("claude-code-headless", "claude-code", "opencode", "codex"):
         assert registry.get_runner(runner) is not None
     assert registry.get_provider("workspace", "git-worktree") is not None
     assert registry.get_provider("source", "github_issues") is not None

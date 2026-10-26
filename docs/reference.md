@@ -71,7 +71,7 @@ Gates must be deterministic; the validator rejects anything else named `gate.*`.
 | Header field | Meaning |
 | --- | --- |
 | `agent` | Name (required) |
-| `runner` | `claude-code-headless` (default) or `claude-code` (interactive pane) |
+| `runner` | `claude-code-headless` (default), `claude-code` (interactive pane), `opencode` or `codex` |
 | `model`, `tools`, `permission_mode` | Passed to Claude Code (`--model`, `--allowedTools`, `--permission-mode`) |
 | `limits` | `budget_usd`, `turns`, `wall` (e.g. `20m`); required |
 | `outputs` | `{ name: Cap }`: structured output checked against the cap |
@@ -91,6 +91,7 @@ Gates must be deterministic; the validator rejects anything else named `gate.*`.
 | --- | --- | --- |
 | `claude-code-headless` | structured output, resume, budget | `claude -p`; hard `--max-turns` / `--max-budget-usd` |
 | `opencode` | structured output (asked for in the prompt, checked against the cap), resume, fork | `opencode run --format json`; no budget enforcement; with tmux the stream is mirrored to a read-only pane. `model` is `provider/model` |
+| `codex` | structured output (`--output-schema`), resume, fork | `codex exec --json`; `permission_mode` maps to the sandbox (`plan` read-only, `bypassPermissions` full access, otherwise workspace-write); reports tokens not dollars, so no budget |
 | `claude-code` | interactive, structured output, resume, fork, budget (estimate) | Live tmux pane; finishes via `whiletrue_submit`; see [getting-started.md](getting-started.md#interactive-agents-a-live-tmux-pane) |
 
 When an agent parks (`needs_human`), the step's output is `{reason, detail, text}`.

@@ -1,0 +1,15 @@
+# The reference pipeline: one GitHub issue per item, open to merged. See README.md.
+name: issue-loop
+parallel: 4
+source: { github_issues: { repo: OWNER/NAME, milestone: M1 } }
+workspace: { git-worktree: { branch: "wt/{{item.id}}" } }
+pipeline:
+  - id: issue
+    composite:
+      uses: "recipe:issue-loop"
+      params:
+        implementer: ./agents/implement.md
+        fixer: ./agents/fix.md
+        responder: ./agents/respond.md
+        repo: OWNER/NAME
+        gate: "test -s feature-{{item.number}}.txt"

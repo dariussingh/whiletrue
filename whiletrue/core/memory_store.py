@@ -68,6 +68,9 @@ class MemoryStore:
     def get_run(self, id: str) -> RunRecord | None:
         return next((r for r in self._runs if r.id == id), None)
 
+    def list_runs(self) -> list[RunRecord]:
+        return sorted((replace(r) for r in self._runs), key=lambda r: r.started_at)
+
     def latest_run(self) -> RunRecord | None:
         return self._runs[-1] if self._runs else None
 
