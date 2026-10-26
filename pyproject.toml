@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "whiletrue"
-version = "0.1.1"
+version = "0.2.0"
 description = "Local orchestrator that runs pipelines of agent and deterministic steps around Claude Code, opencode and Codex, with gates, human approval, parallel git worktrees and crash-safe resume."
 readme = "README.md"
 license = "MIT"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "third_party/harness2/LICENSE"]
 authors = [{ name = "Darius Singh" }]
-keywords = ["agents", "ai-agents", "claude-code", "codex", "coding-agents", "human-in-the-loop", "opencode", "orchestration", "pipelines", "ralph", "tmux", "git-worktree"]
+keywords = ["recursive-self-improvement", "agents", "ai-agents", "claude-code", "codex", "coding-agents", "human-in-the-loop", "opencode", "orchestration", "pipelines", "ralph", "tmux", "git-worktree"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
 - **Recursive self-improvement (`rsi`), off by default.** The Harness² method (Xu et al., arXiv:2610.14224) ported into `whiletrue.rsi.harness2`: isolated rollouts, improver sessions that edit the harness, composition, blind selection, a per-domain experience library, human-approved adoption, `rsi.budget_usd` and the R = 4k / P = 3k budget identity. New: top-level `rsi:` setting, strategy `rsi.harness2`, `whiletrue rsi status|diff|library|adopt|reset`. Claude Code and Codex surfaces. Apache-2.0 code keeps its headers; see THIRD_PARTY_NOTICES.md. Guide: docs/rsi.md.
 - Core: a scope can redirect its steps to another directory (`cwd`), runners can pass raw messages (`RunContext.on_raw`), agents expose an event tap, and the item scope has `project_dir`.
