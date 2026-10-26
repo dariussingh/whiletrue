@@ -242,7 +242,7 @@ Live tests against real agent CLIs are opt-in: `WHILETRUE_LIVE=1 uv run pytest t
 
 Optional and off by default: `rsi: true` lets whiletrue improve the harness around your agent (prompts, skills, subagents) item by item with the Propose, Probe, Compose method from Harness², using isolated rollouts, blind selection and a per-domain experience library. A person approves what is adopted. It multiplies agent spend (about 7 times at `k: 1`) and is capped by `budget_usd`. See [docs/rsi.md](docs/rsi.md). Next: Gemini CLI support.
 
-<img src="docs/assets/rsi-architecture.svg" alt="rsi architecture: task-level recursion per item (reference rollouts, propose, INV and DOM candidates, compose, blind selection, apply) and harnessing-level recursion across items (reflect, human adoption, experience library)" width="900">
+<img src="docs/assets/rsi-architecture.svg" alt="rsi architecture: for each item run, propose, probe, compose, select and apply; then reflect, a person approves, and a library feeds the next item" width="900">
 
 ## Acknowledgements and citation
 

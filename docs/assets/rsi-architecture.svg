@@ -1,69 +1,44 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" width="960" height="560" role="img" aria-label="rsi architecture: task-level recursion runs reference rollouts, proposes general and domain harness edits, probes them in isolated workspaces, composes final harnesses and selects one blind; harnessing-level recursion reflects into a per-domain library read by the next item; a person approves what is adopted">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" width="960" height="420" role="img" aria-label="rsi architecture: for each item, run the steps, propose harness edits, probe them, compose, then select and apply; the result is reflected on, approved by a person and stored in a library that the next item's propose step reads">
 <style>
 text{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace;fill:#d5dbe3}
-.t{font-weight:700;font-size:15px}.d{fill:#7d8896}.p{fill:#c9a8e8}.ok{fill:#7fd48a}.hu{fill:#e8935a}
-.n{fill:#151b23;stroke:#2b3440;stroke-width:1.5}.a{fill:#10222b;stroke:#3a7f96;stroke-width:1.5}
-.g{fill:#12251a;stroke:#3f7a50;stroke-width:1.5}.y{fill:#2a2812;stroke:#a89a3a;stroke-width:1.5}
-.h{fill:#2a1f14;stroke:#a8683a;stroke-width:1.5}.v{fill:#241a2e;stroke:#8b66b0;stroke-width:1.5}
-.l{stroke:#7d8896;stroke-width:1.5;fill:none;marker-end:url(#m)}
+.t{font-weight:700;font-size:15px}.d{fill:#8b96a3}.p{fill:#c9a8e8}.hu{fill:#e8935a}.s{font-size:12px}
+.a{fill:#10222b;stroke:#3a7f96;stroke-width:1.5}.h{fill:#2a1f14;stroke:#a8683a;stroke-width:1.5}
+.v{fill:#241a2e;stroke:#8b66b0;stroke-width:1.5}.l{stroke:#7d8896;stroke-width:1.5;fill:none;marker-end:url(#m)}
 .lp{stroke:#8b66b0;stroke-width:2;fill:none;marker-end:url(#mp)}
 </style>
 <defs>
 <marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#7d8896"/></marker>
 <marker id="mp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8b66b0"/></marker>
 </defs>
-<rect width="960" height="560" rx="10" fill="#0f1419"/>
-<text class="t" x="30" y="32">rsi.harness2: recursion around one item, repeated across items</text>
+<rect width="960" height="420" rx="10" fill="#0f1419"/>
 
-<rect x="20" y="48" width="920" height="352" rx="12" fill="#12161d" stroke="#3a3f4d" stroke-width="1.5"/>
-<text class="t p" x="36" y="74">Task-level recursion, per item</text>
+<text class="t" x="30" y="40">For each item</text>
+<text class="d s" x="165" y="40">(copies of the workspace, so nothing touches your files until the end)</text>
 
-<rect class="n" x="36" y="92" width="140" height="150" rx="6"/>
-<text class="t" x="48" y="116">Reference</text><text class="t" x="48" y="134">rollouts</text>
-<text class="d" x="48" y="158">k runs of your</text><text class="d" x="48" y="174">steps with the</text><text class="d" x="48" y="190">current harness,</text><text class="d" x="48" y="206">in a workspace</text><text class="d" x="48" y="222">copy</text>
+<rect class="a" x="30" y="60" width="160" height="92" rx="6"/>
+<text class="t" x="44" y="88">1 Run</text><text class="d" x="44" y="112">your steps as</text><text class="d" x="44" y="130">they are today</text>
+<rect class="a" x="215" y="60" width="160" height="92" rx="6"/>
+<text class="t" x="229" y="88">2 Propose</text><text class="d" x="229" y="112">an improver edits</text><text class="d" x="229" y="130">the harness</text>
+<rect class="a" x="400" y="60" width="160" height="92" rx="6"/>
+<text class="t" x="414" y="88">3 Probe</text><text class="d" x="414" y="112">run each edited</text><text class="d" x="414" y="130">harness</text>
+<rect class="a" x="585" y="60" width="160" height="92" rx="6"/>
+<text class="t" x="599" y="88">4 Compose</text><text class="d" x="599" y="112">merge the best</text><text class="d" x="599" y="130">edits, run again</text>
+<rect class="a" x="770" y="60" width="160" height="92" rx="6"/>
+<text class="t" x="784" y="88">5 Select</text><text class="d" x="784" y="112">pick one result,</text><text class="d" x="784" y="130">blind; apply it</text>
+<path class="l" d="M190 106H213"/><path class="l" d="M375 106H398"/><path class="l" d="M560 106H583"/><path class="l" d="M745 106H768"/>
 
-<rect class="a" x="206" y="92" width="150" height="150" rx="6"/>
-<text class="t" x="218" y="116">Propose</text>
-<text class="d" x="218" y="138">improver sessions</text><text class="d" x="218" y="154">edit the harness</text><text class="d" x="218" y="170">from full</text><text class="d" x="218" y="186">trajectories,</text><text class="d" x="218" y="202">no scores</text>
+<text class="t p" x="30" y="208">Across items</text>
+<path class="lp" d="M850 152V240"/>
+<rect class="v" x="770" y="242" width="160" height="92" rx="6"/>
+<text class="t" x="784" y="270">6 Reflect</text><text class="d" x="784" y="294">what edits did,</text><text class="d" x="784" y="312">one lesson max</text>
+<rect class="h" x="585" y="242" width="160" height="92" rx="6"/>
+<text class="t hu" x="599" y="270">7 A person</text><text class="d" x="599" y="294">approves what is</text><text class="d" x="599" y="312">adopted</text>
+<rect class="v" x="215" y="242" width="160" height="92" rx="6"/>
+<text class="t" x="229" y="270">8 Library</text><text class="d" x="229" y="294">lessons per area,</text><text class="d" x="229" y="312">next item reads</text>
+<path class="lp" d="M770 288H747"/><path class="lp" d="M585 288H377"/>
+<path class="lp" d="M295 242V154"/>
+<text class="d s" x="305" y="205" style="fill:#c9a8e8">feeds step 2 of the next item</text>
 
-<rect class="g" x="388" y="92" width="190" height="66" rx="6"/>
-<text class="t" x="400" y="116">INV candidates</text><text class="d" x="400" y="138">how the agent works</text>
-<rect class="y" x="388" y="176" width="190" height="66" rx="6"/>
-<text class="t" x="400" y="200">DOM candidates</text><text class="d" x="400" y="222">what an expert knows</text>
-<text class="d" x="388" y="262">Probe: each candidate rolled out once</text>
-
-<rect class="a" x="610" y="92" width="150" height="150" rx="6"/>
-<text class="t" x="622" y="116">Compose</text>
-<text class="d" x="622" y="138">merge using the</text><text class="d" x="622" y="154">rollouts; k final</text><text class="d" x="622" y="170">harnesses, each</text><text class="d" x="622" y="186">rolled out</text>
-
-<rect class="n" x="792" y="92" width="132" height="150" rx="6"/>
-<text class="t" x="804" y="116">Select</text>
-<text class="d" x="804" y="138">anonymous</text><text class="d" x="804" y="154">outputs, blind;</text><text class="d" x="804" y="170">falls back to</text><text class="d" x="804" y="186">a base run</text>
-
-<path class="l" d="M176 167H204"/><path class="l" d="M356 167H386"/><path class="l" d="M578 125H608"/><path class="l" d="M578 209H608"/><path class="l" d="M760 167H790"/>
-<path class="l" d="M858 242V290H241V298"/>
-
-<rect class="h" x="36" y="300" width="410" height="84" rx="6"/>
-<text class="t hu" x="48" y="324">The chosen result is applied</text>
-<text class="d" x="48" y="346">file changes go into the item's workspace;</text>
-<text class="d" x="48" y="364">your gates, commit and PR run on them</text>
-
-<rect class="v" x="478" y="300" width="446" height="84" rx="6"/>
-<text class="t p" x="490" y="324">Budget: R = 4k rollouts, P = 3k sessions</text>
-<text class="d" x="490" y="346">hard cap per item (budget_usd);</text>
-<text class="d" x="490" y="364">finished stages are reused on resume</text>
-
-<rect x="20" y="416" width="920" height="124" rx="12" fill="#17121f" stroke="#8b66b0" stroke-width="1.5"/>
-<text class="t p" x="36" y="442">Harnessing-level recursion, across items</text>
-
-<rect class="v" x="36" y="454" width="190" height="72" rx="6"/>
-<text class="t" x="48" y="478">Reflect</text><text class="d" x="48" y="498">what each edit did,</text><text class="d" x="48" y="514">one lesson at most</text>
-<rect class="h" x="262" y="454" width="250" height="72" rx="6"/>
-<text class="t hu" x="274" y="478">Human adoption gate</text><text class="d" x="274" y="498">approve | auto | never;</text><text class="d" x="274" y="514">code files always a person</text>
-<rect class="v" x="548" y="454" width="250" height="72" rx="6"/>
-<text class="t" x="560" y="478">Experience library</text><text class="d" x="560" y="498">per domain; read by the</text><text class="d" x="560" y="514">next item's improvers</text>
-<path class="lp" d="M226 490H260"/><path class="lp" d="M512 490H546"/>
-<path class="lp" d="M798 490H830V408H462V250H282V244"/>
-<text class="d" x="838" y="478" style="fill:#c9a8e8">next item</text>
-<text class="d" x="36" y="556">Method: Harness² (Xu et al., Google Research, 2026, arXiv:2610.14224), ported into whiletrue.rsi.harness2.</text>
+<text class="d" x="30" y="372">Spend is capped per item (budget_usd): k=1 means 4 runs and 3 improver sessions.</text>
+<text class="d" x="30" y="394">Method: Harness² (Xu et al., Google Research, 2026, arXiv:2610.14224), ported into whiletrue.rsi.harness2.</text>
 </svg>
